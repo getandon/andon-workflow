@@ -30,6 +30,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
           file: docker/base.Dockerfile
@@ -40,6 +41,18 @@ jobs:
             type=registry,ref=${{ env.IMAGE_PREFIX }}/andon-base:${{ github.ref_name }}
             type=registry,ref=${{ env.IMAGE_PREFIX }}/andon-base:main
           cache-to: type=inline
+
+      - name: Build summary
+        run: |
+          {
+            echo "## andon-base"
+            echo ""
+            echo "Published to GHCR (public image, no artifacts uploaded):"
+            echo ""
+            echo "- \`${{ env.IMAGE_PREFIX }}/andon-base:${{ github.ref_name }}\`"
+            echo ""
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   app:
     runs-on: ubuntu-latest
@@ -74,6 +87,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -85,6 +99,18 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+      - name: Build summary
+        run: |
+          {
+            echo "## andon-${{ matrix.name }}"
+            echo ""
+            echo "Published to GHCR (public image, no artifacts uploaded):"
+            echo ""
+            echo "${{ steps.meta.outputs.tags }}" | sed 's/^/- `/;s/$/`/'
+            echo ""
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   frontend:
     runs-on: ubuntu-latest
@@ -111,6 +137,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: apps/frontend
           file: apps/frontend/Dockerfile
@@ -120,3 +147,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
+
+      - name: Build summary
+        run: |
+          {
+            echo "## andon-frontend"
+            echo ""
+            echo "Published to GHCR (public image, no artifacts uploaded):"
+            echo ""
+            echo "${{ steps.meta.outputs.tags }}" | sed 's/^/- `/;s/$/`/'
+            echo ""
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
