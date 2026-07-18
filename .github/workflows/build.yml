@@ -39,9 +39,8 @@ jobs:
           file: docker/base.Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          no-cache: true
           tags: ${{ env.IMAGE_PREFIX }}/andon-base:${{ github.ref_name }}
-          cache-from: type=gha,scope=base
-          cache-to: type=gha,scope=base,mode=max
 
       - name: Build summary
         run: |
@@ -94,12 +93,11 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
+          no-cache: true
           build-args: |
             BASE_IMAGE=${{ env.IMAGE_PREFIX }}/andon-base:${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,scope=${{ matrix.name }},mode=max
 
       - name: Build summary
         run: |
@@ -142,12 +140,11 @@ jobs:
         with:
           context: apps/frontend
           file: apps/frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          no-cache: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
 
       - name: Build summary
         run: |
