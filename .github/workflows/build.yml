@@ -11,6 +11,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/getandon
+  DOCKER_BUILD_RECORD_UPLOAD: false
 
 jobs:
   base:
