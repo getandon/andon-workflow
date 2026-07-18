@@ -1,0 +1,8 @@
+node_modules
+dist
+apps/frontend/node_modules
+apps/frontend/dist
+.git
+.github
+deploy
+docker-compose.yml

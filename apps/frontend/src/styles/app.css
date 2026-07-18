@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-background: #0d0e15;
+  --color-foreground: #f2f2f5;
+  --color-card: #12131a;
+  --color-card-foreground: #f2f2f5;
+  --color-popover: #12131a;
+  --color-popover-foreground: #f2f2f5;
+  --color-primary: #4ade80;
+  --color-primary-foreground: #0d1f14;
+  --color-secondary: #3a3d4a;
+  --color-secondary-foreground: #f2f2f5;
+  --color-muted: #22242e;
+  --color-muted-foreground: #8b8fa3;
+  --color-accent: #2d2f3a;
+  --color-accent-foreground: #f2f2f5;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #f2f2f5;
+  --color-success: #4ade80;
+  --color-warning: #facc15;
+  --color-border: #2a2d3a;
+  --color-input: #2a2d3a;
+  --color-ring: #4ade80;
+  --color-sidebar: #0a0b12;
+  --color-sidebar-foreground: #f2f2f5;
+  --color-sidebar-accent: #2d2f3a;
+  --color-sidebar-accent-foreground: #f2f2f5;
+  --color-sidebar-border: #2a2d3a;
+  --color-chart-1: #4ade80;
+  --color-chart-2: #60a5fa;
+  --color-chart-3: #facc15;
+  --color-chart-4: #ef4444;
+  --color-chart-5: #c084fc;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --radius: 0.5rem;
+}
+
+:root {
+  --background: #0d0e15;
+  --foreground: #f2f2f5;
+  --card: #12131a;
+  --card-foreground: #f2f2f5;
+  --popover: #12131a;
+  --popover-foreground: #f2f2f5;
+  --primary: #4ade80;
+  --primary-foreground: #0d1f14;
+  --secondary: #3a3d4a;
+  --secondary-foreground: #f2f2f5;
+  --muted: #22242e;
+  --muted-foreground: #8b8fa3;
+  --accent: #2d2f3a;
+  --accent-foreground: #f2f2f5;
+  --destructive: #ef4444;
+  --destructive-foreground: #f2f2f5;
+  --success: #4ade80;
+  --warning: #facc15;
+  --border: #2a2d3a;
+  --input: #2a2d3a;
+  --ring: #4ade80;
+  --sidebar: #0a0b12;
+  --sidebar-foreground: #f2f2f5;
+  --sidebar-accent: #2d2f3a;
+  --sidebar-accent-foreground: #f2f2f5;
+  --sidebar-border: #2a2d3a;
+  --chart-1: #4ade80;
+  --chart-2: #60a5fa;
+  --chart-3: #facc15;
+  --chart-4: #ef4444;
+  --chart-5: #c084fc;
+  --radius: 0.5rem;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* shadcn sidebar needs these to be defined on :root */
+:root {
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
+  --sidebar-width-mobile: 18rem;
+}

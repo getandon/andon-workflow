@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Job {
+  id            Int       @id @default(autoincrement())
+  workflowId    String    @unique
+  workflowType  String
+  status        String
+  createdBy     String
+  params        String
+  error         String?
+  createdAt     DateTime  @default(now())
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  steps         JobStep[]
+  auditLogs     AuditLog[]
+  inputRequests JobInputRequest[]
+  logEntries    JobLogEntry[]
+}
+
+model JobInputRequest {
+  id         Int       @id @default(autoincrement())
+  jobId      Int
+  job        Job       @relation(fields: [jobId], references: [id])
+  gateId     String
+  kind       String
+  step       String
+  schema     String?
+  status     String    @default("OPEN")
+  payload    String?
+  decidedBy  String?
+  reason     String?
+  openedAt   DateTime  @default(now())
+  expiresAt  DateTime?
+  resolvedAt DateTime?
+
+  @@unique([jobId, gateId])
+}
+
+model JobStep {
+  id         Int       @id @default(autoincrement())
+  jobId      Int
+  job        Job       @relation(fields: [jobId], references: [id])
+  name       String
+  status     String    @default("PENDING")
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  jobId     Int?
+  job       Job?     @relation(fields: [jobId], references: [id])
+  action    String
+  details   String
+  createdAt DateTime @default(now())
+}
+
+model Worker {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  environment  String
+  taskQueue    String
+  status       String   @default("ONLINE")
+  lastHeartbeat DateTime?
+  activities   String   @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model JobLogEntry {
+  id      Int      @id @default(autoincrement())
+  jobId   Int
+  job     Job      @relation(fields: [jobId], references: [id])
+  ts      DateTime @default(now())
+  level   String   @default("INFO")
+  source  String
+  step    String?
+  message String
+
+  @@index([jobId])
+}

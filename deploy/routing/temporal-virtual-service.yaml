@@ -1,0 +1,29 @@
+# Exposes the Temporal frontend (gRPC) through the existing Istio gateway so
+# remote workers in other networks can connect. The gateway terminates TLS
+# (*.pix-xo.cloud cert) and forwards plaintext HTTP/2 (h2c) to temporal:7233.
+#
+# Remote worker config:
+#   TEMPORAL_ADDRESS=andon-temporal.pix-xo.cloud:443
+#   TEMPORAL_TLS=true
+#
+# Requires a DNS record: andon-temporal.pix-xo.cloud -> istio ingress gateway LB.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: andon-temporal
+  namespace: andon
+spec:
+  gateways:
+    - istio-system/istio-gateway
+  hosts:
+    - "andon-temporal.pix-xo.cloud"
+  http:
+    - name: andon-temporal
+      match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: temporal.andon.svc.cluster.local
+            port:
+              number: 7233

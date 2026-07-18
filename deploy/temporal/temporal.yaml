@@ -1,0 +1,83 @@
+# Single-node Temporal via auto-setup: fine for an internal ops control plane.
+# To use Temporal Cloud or an external server instead, delete this file and
+# postgres.yaml, then change TEMPORAL_ADDRESS (and TEMPORAL_TLS_* / TEMPORAL_API_KEY
+# / TEMPORAL_NAMESPACE) on the api and worker Deployments.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal
+  namespace: andon
+  labels:
+    app: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal
+  template:
+    metadata:
+      labels:
+        app: temporal
+    spec:
+      containers:
+        - name: temporal
+          image: temporalio/auto-setup:1.29
+          ports:
+            - containerPort: 7233
+          env:
+            - name: DB
+              value: postgres12
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: temporal
+            - name: POSTGRES_PWD
+              value: temporal
+            - name: POSTGRES_DB
+              value: temporal
+            - name: POSTGRES_SEEDS
+              value: temporal-postgres
+            - name: DYNAMIC_CONFIG_FILE_PATH
+              value: /etc/temporal/config/dynamicconfig/temporal-dynamic-config.yaml
+          readinessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 120
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: dynamic-config
+              mountPath: /etc/temporal/config/dynamicconfig
+      volumes:
+        - name: dynamic-config
+          configMap:
+            name: temporal-dynamic-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal
+  namespace: andon
+spec:
+  type: ClusterIP
+  selector:
+    app: temporal
+  ports:
+    # Port name/appProtocol "grpc" is required: Istio must speak HTTP/2 (h2c)
+    # to the backend or gRPC routed through the gateway will fail.
+    - name: grpc
+      appProtocol: grpc
+      port: 7233
+      targetPort: 7233
+      protocol: TCP

@@ -1,0 +1,61 @@
+# In-cluster worker fleet. To add another fleet (different network/database),
+# copy this file and change WORKER_NAME, TEMPORAL_TASK_QUEUE and MONGODB_URI.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: andon
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/getandon/andon-worker:latest
+          imagePullPolicy: Always
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: temporal:7233
+            - name: TEMPORAL_TASK_QUEUE
+              value: default
+            - name: WORKER_NAME
+              value: cluster-worker
+            - name: ANDON_API_URL
+              value: http://api:3000
+            - name: S3_REGION
+              value: eu-central-1
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: andon-secret
+                  key: API_KEY
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: andon-secret
+                  key: MONGODB_URI
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: andon-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: andon-secret
+                  key: AWS_SECRET_ACCESS_KEY
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi

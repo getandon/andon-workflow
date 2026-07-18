@@ -1,0 +1,173 @@
+services:
+  temporal:
+    image: temporalio/auto-setup:1.29
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_DB=temporal
+      - POSTGRES_SEEDS=postgres
+    volumes:
+      - ./temporal-dynamic-config.yaml:/etc/temporal/config/dynamicconfig/temporal-dynamic-config.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  temporal-admin:
+    image: temporalio/admin-tools:1.29
+    depends_on:
+      - temporal
+
+  temporal-ui:
+    image: temporalio/ui:2.52.0
+    ports:
+      - "8081:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=temporal
+      - POSTGRES_PASSWORD=temporal
+      - POSTGRES_DB=temporal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    entrypoint: minio server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio-data:/data
+
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb local/andon-backups --ignore-existing;
+      echo 'Bucket andon-backups created';
+      "
+
+  mongodb-source:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-source-data:/data/db
+
+  mongodb-target:
+    image: mongo:7
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-target-data:/data/db
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - API_KEY=dev-key
+      - DATABASE_URL=file:./data/andon.db
+    depends_on:
+      - temporal
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/workers/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - andon-db:/app/data
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  worker-source:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_TASK_QUEUE=source
+      - WORKER_NAME=source-worker
+      - MONGODB_URI=mongodb://mongodb-source:27017/source
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET=andon-backups
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - ANDON_API_URL=http://api:3000
+      - API_KEY=dev-key
+      - WORKER_HEARTBEAT_INTERVAL_MS=30000
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://api:3000/api/workers/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - temporal
+      - minio
+      - mongodb-source
+      - api
+  worker-target:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_TASK_QUEUE=target
+      - WORKER_NAME=target-worker
+      - MONGODB_URI=mongodb://mongodb-target:27017/target
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET=andon-backups
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - ANDON_API_URL=http://api:3000
+      - API_KEY=dev-key
+      - WORKER_HEARTBEAT_INTERVAL_MS=30000
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://api:3000/api/workers/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - temporal
+      - minio
+      - mongodb-target
+      - api
+
+volumes:
+  minio-data:
+  mongo-source-data:
+  mongo-target-data:
+  andon-db:

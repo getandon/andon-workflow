@@ -1,0 +1,26 @@
+# Exposes only the API through the existing Istio gateway, for remote workers
+# dialing in with ANDON_API_URL=https://andon-api.pix-xo.cloud (plus /socket.io).
+# The frontend is intentionally not exposed; use port-forward.
+# Requires a DNS record: andon-api.pix-xo.cloud -> istio ingress gateway LB.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: andon-api
+  namespace: andon
+spec:
+  gateways:
+    - istio-system/istio-gateway
+  hosts:
+    - "andon-api.pix-xo.cloud"
+  http:
+    - name: andon-api
+      match:
+        - uri:
+            prefix: /
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: api.andon.svc.cluster.local
+            port:
+              number: 3000
