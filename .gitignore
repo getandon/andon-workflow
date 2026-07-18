@@ -7,3 +7,5 @@ coverage/
 *.db-journal
 
 /generated/prisma
+
+*.iml
