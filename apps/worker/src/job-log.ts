@@ -1,8 +1,10 @@
 import { Context } from '@temporalio/activity';
 import * as os from 'os';
+import { buildApiTlsOptions, apiRequest, ApiTlsRequestOptions } from '../../../libs/common/src';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';
+const API_TLS: ApiTlsRequestOptions | undefined = buildApiTlsOptions();
 
 export type JobLogLevel = 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
 
@@ -45,11 +47,15 @@ function post(level: JobLogLevel, message: string) {
     message,
   };
 
-  void fetch(`${API_URL}/api/jobs/logs`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({ workflowId, entries: [entry] }),
-  }).catch(() => {});
+  void apiRequest(
+    `${API_URL}/api/jobs/logs`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ workflowId, entries: [entry] }),
+    },
+    API_TLS,
+  ).catch(() => {});
 }
 
 function stderrTail(err: unknown, lines = 20): string | null {
