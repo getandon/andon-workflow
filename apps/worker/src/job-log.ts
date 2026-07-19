@@ -1,6 +1,6 @@
 import { Context } from '@temporalio/activity';
 import * as os from 'os';
-import { buildApiTlsOptions, apiRequest, ApiTlsRequestOptions } from '../../../libs/common/src';
+import { buildApiTlsOptions, apiRequest, ApiTlsRequestOptions } from '@andon-workflow/lib';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';

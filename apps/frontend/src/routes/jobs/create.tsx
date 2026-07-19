@@ -49,6 +49,20 @@ function CreateJob() {
     return queues.map((q) => ({ label: q, value: q }));
   }, [workers]);
 
+  const taskQueueOverrides = useMemo(() => {
+    if (!selectedWorkflow || taskQueueOptions.length === 0) return {};
+    const overrides: Record<string, { options: typeof taskQueueOptions }> = {};
+    const properties = (selectedWorkflow.inputSchema as JsonSchemaObject)?.properties;
+    if (properties) {
+      for (const key of Object.keys(properties)) {
+        if (/taskQueue/i.test(key)) {
+          overrides[key] = { options: taskQueueOptions };
+        }
+      }
+    }
+    return overrides;
+  }, [selectedWorkflow, taskQueueOptions]);
+
   const submit = async () => {
     if (!selectedType || !selectedWorkflow) {
       toast.error('Select a workflow type.');
@@ -130,10 +144,7 @@ function CreateJob() {
               }
             }}
             errors={formErrors}
-            overrides={{
-              sourceTaskQueue: { options: taskQueueOptions },
-              targetTaskQueue: { options: taskQueueOptions },
-            }}
+            overrides={taskQueueOverrides}
           />
         )}
 

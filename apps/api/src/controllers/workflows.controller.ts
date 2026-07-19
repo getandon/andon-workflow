@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { WORKFLOW_REGISTRY } from '../../../../libs/workflows/src';
+import { WORKFLOW_REGISTRY } from '@andon-workflow/workflows';
 
 @Controller('api/workflows')
 export class WorkflowsController {

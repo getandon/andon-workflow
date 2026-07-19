@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MongoClient } from 'mongodb';
-import { VerifyInput, VerifyResult } from '../../../../libs/common/src';
-import { requiredEnv } from '../../../../libs/common/src';
+import { VerifyInput, VerifyResult, requiredEnv } from '@andon-workflow/lib';
 import { jobLog } from '../job-log';
 
 @Injectable()

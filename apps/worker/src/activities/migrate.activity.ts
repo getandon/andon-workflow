@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { existsSync } from 'fs';
-import { MigrateInput } from '../../../../libs/common/src';
-import { execAsync } from '../../../../libs/common/src';
+import { MigrateInput, execAsync } from '@andon-workflow/lib';
 import { jobLog } from '../job-log';
 
 @Injectable()

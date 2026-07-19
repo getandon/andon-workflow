@@ -5,13 +5,13 @@ import { TemporalService } from '../temporal/temporal.service';
 import { JobsGateway } from '../gateways/jobs.gateway';
 import { AuditService } from './audit.service';
 import { JobLogsService } from './job-logs.service';
-import { WORKFLOW_REGISTRY } from '../../../../libs/workflows/src';
+import { WORKFLOW_REGISTRY } from '@andon-workflow/workflows';
 import {
   SUBMIT_INPUT_UPDATE_NAME,
   PENDING_INPUT_REQUESTS_QUERY_NAME,
   type PendingInputRequest,
   type InputSubmission,
-} from '../../../../libs/common/src';
+} from '@andon-workflow/lib';
 
 const ACTOR = 'api-key';
 

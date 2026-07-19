@@ -4,6 +4,9 @@ import { BackupActivity } from './activities/backup.activity';
 import { RestoreActivity } from './activities/restore.activity';
 import { MigrateActivity } from './activities/migrate.activity';
 import { VerifyActivity } from './activities/verify.activity';
+import { MarkUserAsLegacyActivity } from './activities/pixxo/MarkUserAsLegacy.activity';
+import { CalculateUserPackageUsageActivity } from './activities/pixxo/CalculateUserPackageUsage.activity';
+import { CalculateAlbumSummaryActivity } from './activities/pixxo/CalculateAlbumSummary.activity';
 
 @Module({
   providers: [
@@ -12,6 +15,9 @@ import { VerifyActivity } from './activities/verify.activity';
     RestoreActivity,
     MigrateActivity,
     VerifyActivity,
+    MarkUserAsLegacyActivity,
+    CalculateUserPackageUsageActivity,
+    CalculateAlbumSummaryActivity,
   ],
 })
 export class WorkerModule {}

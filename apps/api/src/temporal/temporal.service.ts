@@ -4,7 +4,7 @@ import {
   TEMPORAL_DEFAULT_ADDRESS,
   buildTemporalTls,
   temporalNamespace,
-} from '../../../../libs/common/src';
+} from '@andon-workflow/lib';
 
 @Injectable()
 export class TemporalService {

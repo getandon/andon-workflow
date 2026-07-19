@@ -10,11 +10,14 @@ import {
   apiRequest,
   ApiTlsRequestOptions,
   collectCertInfo,
-} from '../../../../libs/common/src';
+} from '@andon-workflow/lib';
 import { BackupActivity } from '../activities/backup.activity';
 import { RestoreActivity } from '../activities/restore.activity';
 import { MigrateActivity } from '../activities/migrate.activity';
 import { VerifyActivity } from '../activities/verify.activity';
+import { MarkUserAsLegacyActivity } from '../activities/pixxo/MarkUserAsLegacy.activity';
+import { CalculateUserPackageUsageActivity } from '../activities/pixxo/CalculateUserPackageUsage.activity';
+import { CalculateAlbumSummaryActivity } from '../activities/pixxo/CalculateAlbumSummary.activity';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';
@@ -42,6 +45,9 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly restore: RestoreActivity,
     private readonly migrate: MigrateActivity,
     private readonly verify: VerifyActivity,
+    private readonly markUserAsLegacy: MarkUserAsLegacyActivity,
+    private readonly calculateUserPackageUsage: CalculateUserPackageUsageActivity,
+    private readonly calculateAlbumSummary: CalculateAlbumSummaryActivity,
   ) {
     const taskQueue = process.env.TEMPORAL_TASK_QUEUE ?? 'source';
     this.workerName = process.env.WORKER_NAME ?? `${os.hostname()}-${taskQueue}`;
@@ -63,6 +69,9 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
       restoreDatabase: this.restore.restoreDatabase.bind(this.restore),
       runMigration: this.migrate.runMigration.bind(this.migrate),
       verifyDatabase: this.verify.verifyDatabase.bind(this.verify),
+      markUserAsLegacy: this.markUserAsLegacy.markUserAsLegacy.bind(this.markUserAsLegacy),
+      calculateUserPackageUsage: this.calculateUserPackageUsage.calculateUserPackageUsage.bind(this.calculateUserPackageUsage),
+      calculateAlbumSummary: this.calculateAlbumSummary.calculateAlbumSummary.bind(this.calculateAlbumSummary),
     };
 
     this.worker = await Worker.create({

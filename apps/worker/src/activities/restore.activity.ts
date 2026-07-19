@@ -2,9 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { createWriteStream, unlinkSync } from 'fs';
 import { pipeline } from 'stream/promises';
-import { RestoreInput } from '../../../../libs/common/src';
-import { execAsync, assertSafeName, createS3Client, requiredEnv } from '../../../../libs/common/src';
-import { S3_URI_REGEX } from '../../../../libs/common/src';
+import { RestoreInput, execAsync, assertSafeName, createS3Client, requiredEnv, S3_URI_REGEX } from '@andon-workflow/lib';
 import { jobLog } from '../job-log';
 
 @Injectable()
