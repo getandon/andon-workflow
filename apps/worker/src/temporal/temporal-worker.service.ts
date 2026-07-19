@@ -104,12 +104,16 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
 
   private async registerWorker(taskQueue: string, environment: string, activities: string[]) {
     try {
+      const body = JSON.stringify({ name: this.workerName, taskQueue, environment, activities, identity: this.workerName });
+      console.log(`Registering worker ${this.workerName} with task queue ${taskQueue} and environment ${environment}`);
+      console.log(`Is with tls ${!!API_TLS}`);
+      console.log(`Headers: ${authHeaders()}`);
       const res = await apiRequest(
         `${API_URL}/api/workers/register`,
         {
           method: 'POST',
           headers: authHeaders(),
-          body: JSON.stringify({ name: this.workerName, taskQueue, environment, activities, identity: this.workerName }),
+          body,
         },
         API_TLS,
       );
@@ -117,6 +121,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
         console.warn(`Worker registration failed (HTTP ${res.status}): ${res.text}`);
       }
     } catch (err) {
+      console.error(err);
       console.warn('Failed to register worker with API:', (err as Error).message);
     }
   }
