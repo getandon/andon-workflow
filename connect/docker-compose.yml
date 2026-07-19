@@ -1,10 +1,48 @@
 services:
+  mongo1:
+    image: mongo:7.0
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27017" ]
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:27017:27017"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:27017',priority:2},{_id:1,host:'mongo2:27018',priority:1},{_id:2,host:'mongo3:27019',priority:1}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
+    volumes:
+      - "./databases/mongo/mongo1_data:/data/db"
+      - "./databases/mongo/mongo1_config:/data/configdb"
+
+  mongo2:
+    image: mongo:7.0
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27018" ]
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:27018:27018"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - "./databases/mongo/mongo2_data:/data/db"
+      - "./databases/mongo/mongo2_config:/data/configdb"
+
+  mongo3:
+    image: mongo:7.0
+    command: [ "--replSet", "rs0", "--bind_ip_all", "--port", "27019" ]
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:27019:27019"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - "./databases/mongo/mongo3_data:/data/db"
+      - "./databases/mongo/mongo3_config:/data/configdb"
   worker:
-    image: ghcr.io/getandon/andon-worker:latest
-    # Build from source instead:
-    # build:
-    #   context: ..
-    #   dockerfile: apps/worker/Dockerfile
+    image: ghcr.io/getandon/andon-worker:main@sha256:625641e24f50e1afe58775d7cde13794db4d9aaeb2dd5c84773364ad17bc50c8
     restart: unless-stopped
     environment:
       - TEMPORAL_ADDRESS=andon-temporal.pix-xo.cloud:443
@@ -16,11 +54,13 @@ services:
       - TEMPORAL_TLS_SERVER_ROOT_CA_PATH=/etc/andon/certs/ca.crt
       - ANDON_API_URL=https://andon-api.pix-xo.cloud
       - API_KEY=${API_KEY}
-      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo1:27017,mongo2:27018,mongo3:27019/?replicaSet=rs0}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - S3_REGION=${S3_REGION:-eu-central-1}
       - S3_BUCKET=${S3_BUCKET:-andon-backups}
       - WORKER_HEARTBEAT_INTERVAL_MS=${WORKER_HEARTBEAT_INTERVAL_MS:-30000}
+    env_file:
+      - .env
     volumes:
       - ./certs:/etc/andon/certs:ro
