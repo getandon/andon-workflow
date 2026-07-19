@@ -1,0 +1,26 @@
+services:
+  worker:
+    image: ghcr.io/getandon/andon-worker:latest
+    # Build from source instead:
+    # build:
+    #   context: ..
+    #   dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_ADDRESS=andon-temporal.pix-xo.cloud:443
+      - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-local-task}
+      - WORKER_NAME=${WORKER_NAME:-local-worker}
+      - TEMPORAL_TLS=true
+      - TEMPORAL_TLS_CLIENT_CERT_PATH=/etc/andon/certs/tls.crt
+      - TEMPORAL_TLS_CLIENT_KEY_PATH=/etc/andon/certs/tls.key
+      - TEMPORAL_TLS_SERVER_ROOT_CA_PATH=/etc/andon/certs/ca.crt
+      - ANDON_API_URL=https://andon-api.pix-xo.cloud
+      - API_KEY=${API_KEY}
+      - MONGODB_URI=${MONGODB_URI}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_REGION=${S3_REGION:-eu-central-1}
+      - S3_BUCKET=${S3_BUCKET:-andon-backups}
+      - WORKER_HEARTBEAT_INTERVAL_MS=${WORKER_HEARTBEAT_INTERVAL_MS:-30000}
+    volumes:
+      - ./certs:/etc/andon/certs:ro
