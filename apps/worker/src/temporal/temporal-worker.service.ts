@@ -104,12 +104,13 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
 
   private async registerWorker(taskQueue: string, environment: string, activities: string[]) {
     try {
+      const url = `${API_URL}/api/workers/register`;
       const body = JSON.stringify({ name: this.workerName, taskQueue, environment, activities, identity: this.workerName });
-      console.log(`Registering worker ${this.workerName} with task queue ${taskQueue} and environment ${environment}`);
       console.log(`Is with tls ${!!API_TLS}`);
-      console.log(`Headers: ${authHeaders()}`);
+      console.log(`Headers: ${JSON.stringify(authHeaders())}`);
+      console.log(`API_URL: ${url}`);
       const res = await apiRequest(
-        `${API_URL}/api/workers/register`,
+        url,
         {
           method: 'POST',
           headers: authHeaders(),
