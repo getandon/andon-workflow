@@ -73,6 +73,19 @@ model Worker {
   activities   String   @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  tlsEnabled    Boolean  @default(false)
+  temporalTls   Boolean  @default(false)
+  apiTls        Boolean  @default(false)
+  certNotAfter  DateTime?
+  certNotBefore DateTime?
+  certSubject   String?
+  certIssuer    String?
+  certSerial    String?
+  certKeyUsage  String?
+  certFingerprint String?
+  caNotAfter    DateTime?
+  caSubject     String?
 }
 
 model JobLogEntry {

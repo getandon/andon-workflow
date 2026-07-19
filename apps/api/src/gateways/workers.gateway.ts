@@ -22,4 +22,8 @@ export class WorkersGateway implements OnGatewayConnection, OnGatewayDisconnect 
   emitWorkerUpdate(payload: { name: string; status: string; lastHeartbeatSec: number | null }) {
     this.server.emit('worker:update', payload);
   }
+
+  emitWorkerDelete(id: number) {
+    this.server.emit('worker:delete', { id });
+  }
 }

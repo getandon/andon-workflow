@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, ParseIntPipe } from '@nestjs/common';
 import { WorkersService } from '../services/workers.service';
 
 @Controller('api/workers')
@@ -16,12 +16,35 @@ export class WorkersController {
   }
 
   @Post('register')
-  register(@Body() body: { name: string; taskQueue: string; environment: string; activities: string[]; identity?: string }) {
+  register(@Body() body: {
+    name: string;
+    taskQueue: string;
+    environment: string;
+    activities: string[];
+    identity?: string;
+    tlsEnabled?: boolean;
+    temporalTls?: boolean;
+    apiTls?: boolean;
+    certNotAfter?: string | null;
+    certNotBefore?: string | null;
+    certSubject?: string | null;
+    certIssuer?: string | null;
+    certSerial?: string | null;
+    certKeyUsage?: string | null;
+    certFingerprint?: string | null;
+    caNotAfter?: string | null;
+    caSubject?: string | null;
+  }) {
     return this.workers.register(body);
   }
 
   @Post(':name/heartbeat')
   heartbeat(@Param('name') name: string) {
     return this.workers.heartbeatByName(name);
+  }
+
+  @Delete(':id')
+  delete(@Param('id', ParseIntPipe) id: number) {
+    return this.workers.deleteById(id);
   }
 }

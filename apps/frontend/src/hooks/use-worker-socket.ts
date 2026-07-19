@@ -16,8 +16,15 @@ export function useWorkerUpdates() {
       qc.invalidateQueries({ queryKey: ['workers'] });
     });
 
+    socket.on('worker:delete', ({ id }: { id: number }) => {
+      qc.setQueryData<{ id: number; name: string }[]>(['workers'], (old: { id: number; name: string }[] | undefined) =>
+        old?.filter((w: { id: number }) => w.id !== id) ?? [],
+      );
+    });
+
     return () => {
       socket.off('worker:update');
+      socket.off('worker:delete');
       socket.disconnect();
     };
   }, [qc]);

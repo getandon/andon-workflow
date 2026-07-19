@@ -9,6 +9,7 @@ import {
   buildApiTlsOptions,
   apiRequest,
   ApiTlsRequestOptions,
+  collectCertInfo,
 } from '../../../../libs/common/src';
 import { BackupActivity } from '../activities/backup.activity';
 import { RestoreActivity } from '../activities/restore.activity';
@@ -105,10 +106,26 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
   private async registerWorker(taskQueue: string, environment: string, activities: string[]) {
     try {
       const url = `${API_URL}/api/workers/register`;
-      const body = JSON.stringify({ name: this.workerName, taskQueue, environment, activities, identity: this.workerName });
-      console.log(`Is with tls ${!!API_TLS}`);
-      console.log(`Headers: ${JSON.stringify(authHeaders())}`);
-      console.log(`API_URL: ${url}`);
+      const certInfo = collectCertInfo();
+      const body = JSON.stringify({
+        name: this.workerName,
+        taskQueue,
+        environment,
+        activities,
+        identity: this.workerName,
+        tlsEnabled: certInfo.tlsEnabled,
+        temporalTls: certInfo.temporalTls,
+        apiTls: certInfo.apiTls,
+        certNotAfter: certInfo.clientCert?.notAfter ?? null,
+        certNotBefore: certInfo.clientCert?.notBefore ?? null,
+        certSubject: certInfo.clientCert?.subject ?? null,
+        certIssuer: certInfo.clientCert?.issuer ?? null,
+        certSerial: certInfo.clientCert?.serialNumber ?? null,
+        certKeyUsage: certInfo.clientCert?.keyUsage.length ? certInfo.clientCert.keyUsage.join(', ') : null,
+        certFingerprint: certInfo.clientCert?.fingerprint ?? null,
+        caNotAfter: certInfo.caCert?.notAfter ?? null,
+        caSubject: certInfo.caCert?.subject ?? null,
+      });
       const res = await apiRequest(
         url,
         {
