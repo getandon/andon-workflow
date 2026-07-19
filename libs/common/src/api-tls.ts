@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import * as http from 'http';
 import * as https from 'https';
 
 export interface ApiTlsRequestOptions {
@@ -55,29 +56,34 @@ export function apiRequest(
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
 
+    const useTls = parsed.protocol === 'https:' || (tlsOptions?.cert || tlsOptions?.ca) !== undefined;
+    const mod = useTls ? https : http;
+
     const opts: https.RequestOptions = {
       method: init.method,
       hostname: parsed.hostname,
-      port: parsed.port || 443,
+      port: parsed.port || (useTls ? 443 : 80),
       path: `${parsed.pathname}${parsed.search}`,
       headers: init.headers,
     };
 
-    const agent =
-      tlsOptions && (tlsOptions.cert || tlsOptions.ca)
-        ? new https.Agent({
-            cert: tlsOptions.cert as Buffer,
-            key: tlsOptions.key as Buffer,
-            ca: tlsOptions.ca as Buffer,
-            servername: tlsOptions.servername ?? parsed.hostname,
-            keepAlive: true,
-          })
-        : undefined;
+    if (useTls) {
+      const agent =
+        tlsOptions && (tlsOptions.cert || tlsOptions.ca)
+          ? new https.Agent({
+              cert: tlsOptions.cert as Buffer,
+              key: tlsOptions.key as Buffer,
+              ca: tlsOptions.ca as Buffer,
+              servername: tlsOptions.servername ?? parsed.hostname,
+              keepAlive: true,
+            })
+          : undefined;
 
-    opts.servername = tlsOptions?.servername ?? parsed.hostname;
-    if (agent) opts.agent = agent;
+      (opts as https.RequestOptions).servername = tlsOptions?.servername ?? parsed.hostname;
+      if (agent) (opts as https.RequestOptions).agent = agent;
+    }
 
-    const r = https.request(opts, (res) => {
+    const r = mod.request(opts, (res: http.IncomingMessage) => {
       let data = '';
       res.on('data', (c: Buffer) => (data += c.toString('utf8')));
       res.on('end', () => {
