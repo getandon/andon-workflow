@@ -4,5 +4,5 @@
     "declaration": true,
     "outDir": "../../dist/apps/worker"
   },
-  "include": ["src/**/*", "../../libs/workflows/src/**/*"]
+  "include": ["src/**/*", "../../libs/common/src/**/*", "../../libs/workflows/src/**/*"]
 }

@@ -18,9 +18,9 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@andon-workflow/lib": ["./libs/common/src/index.ts"],
+      "@andon-workflow/lib": ["./libs/common/src/index"],
       "@andon-workflow/lib/*": ["./libs/common/src/*"],
-      "@andon-workflow/workflows": ["./libs/workflows/src/index.ts"],
+      "@andon-workflow/workflows": ["./libs/workflows/src/index"],
       "@andon-workflow/workflows/*": ["./libs/workflows/src/*"]
     }
   },
