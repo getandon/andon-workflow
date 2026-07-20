@@ -2,6 +2,8 @@ export { CopyDatabaseWorkflow } from './copy-database.workflow';
 export { workflowDefinition as CopyDatabaseDefinition } from './copy-database.workflow';
 export { PixxoRecalculationWorkflow } from './pixxo-recalculation.workflow';
 export { workflowDefinition as PixxoRecalculationDefinition } from './pixxo-recalculation.workflow';
+export { PixxoUpdateWorkflow } from './pixxo-update.workflow';
+export { workflowDefinition as PixxoUpdateDefinition } from './pixxo-update.workflow';
 export { RestoreDatabaseWorkflow } from './restore-database.workflow';
 export { workflowDefinition as RestoreDatabaseDefinition } from './restore-database.workflow';
 export { WORKFLOW_REGISTRY } from './registry';

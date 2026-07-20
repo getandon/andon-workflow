@@ -18,6 +18,8 @@ import { VerifyActivity } from '../activities/verify.activity';
 import { MarkUserAsLegacyActivity } from '../activities/pixxo/MarkUserAsLegacy.activity';
 import { CalculateUserPackageUsageActivity } from '../activities/pixxo/CalculateUserPackageUsage.activity';
 import { CalculateAlbumSummaryActivity } from '../activities/pixxo/CalculateAlbumSummary.activity';
+import { HydrateUserNamesFromEmailActivity } from '../activities/pixxo/HydrateUserNamesFromEmail.activity';
+import { SetUserPackageItemsActivity } from '../activities/pixxo/SetUserPackageItems.activity';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';
@@ -48,6 +50,8 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly markUserAsLegacy: MarkUserAsLegacyActivity,
     private readonly calculateUserPackageUsage: CalculateUserPackageUsageActivity,
     private readonly calculateAlbumSummary: CalculateAlbumSummaryActivity,
+    private readonly hydrateUserNamesFromEmail: HydrateUserNamesFromEmailActivity,
+    private readonly setUserPackageItems: SetUserPackageItemsActivity,
   ) {
     const taskQueue = process.env.TEMPORAL_TASK_QUEUE ?? 'source';
     this.workerName = process.env.WORKER_NAME ?? `${os.hostname()}-${taskQueue}`;
@@ -72,6 +76,8 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
       markUserAsLegacy: this.markUserAsLegacy.markUserAsLegacy.bind(this.markUserAsLegacy),
       calculateUserPackageUsage: this.calculateUserPackageUsage.calculateUserPackageUsage.bind(this.calculateUserPackageUsage),
       calculateAlbumSummary: this.calculateAlbumSummary.calculateAlbumSummary.bind(this.calculateAlbumSummary),
+      hydrateUserNamesFromEmail: this.hydrateUserNamesFromEmail.hydrateUserNamesFromEmail.bind(this.hydrateUserNamesFromEmail),
+      setUserPackageItems: this.setUserPackageItems.setUserPackageItems.bind(this.setUserPackageItems),
     };
 
     this.worker = await Worker.create({

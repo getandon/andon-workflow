@@ -7,6 +7,8 @@ import { VerifyActivity } from './activities/verify.activity';
 import { MarkUserAsLegacyActivity } from './activities/pixxo/MarkUserAsLegacy.activity';
 import { CalculateUserPackageUsageActivity } from './activities/pixxo/CalculateUserPackageUsage.activity';
 import { CalculateAlbumSummaryActivity } from './activities/pixxo/CalculateAlbumSummary.activity';
+import { HydrateUserNamesFromEmailActivity } from './activities/pixxo/HydrateUserNamesFromEmail.activity';
+import { SetUserPackageItemsActivity } from './activities/pixxo/SetUserPackageItems.activity';
 
 @Module({
   providers: [
@@ -18,6 +20,8 @@ import { CalculateAlbumSummaryActivity } from './activities/pixxo/CalculateAlbum
     MarkUserAsLegacyActivity,
     CalculateUserPackageUsageActivity,
     CalculateAlbumSummaryActivity,
+    HydrateUserNamesFromEmailActivity,
+    SetUserPackageItemsActivity,
   ],
 })
 export class WorkerModule {}

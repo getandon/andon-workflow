@@ -53,10 +53,40 @@ export interface CalculateUserPackageUsageOutput {
   completed: boolean;
 }
 
+export interface SetUserPackageItemsInput {
+  database?: string;
+  batchSize?: number;
+  lastId?: string;
+  limitQuantity: number;
+  sizeQuantity: number;
+  trafficQuantity: number;
+  yearQuantity: number;
+}
+
+export interface SetUserPackageItemsOutput {
+  totalProcessed: number;
+  totalModified: number;
+  batches: number;
+  completed: boolean;
+}
+
 export interface CalculateAlbumSummaryInput {
   database?: string;
   batchSize?: number;
   lastId?: string;
+}
+
+export interface HydrateUserNamesFromEmailInput {
+  database?: string;
+  batchSize?: number;
+  lastId?: string;
+}
+
+export interface HydrateUserNamesFromEmailOutput {
+  totalProcessed: number;
+  namesFixed: number;
+  batches: number;
+  completed: boolean;
 }
 
 export interface CalculateAlbumSummaryOutput {
