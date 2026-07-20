@@ -99,7 +99,7 @@ export class SetUserPackageItemsActivity {
       YEAR: { quantity: input.yearQuantity, overwriteTime: true },
     };
 
-    const client = new MongoClient(mongoUri);
+    const client = new MongoClient(mongoUri, { authSource: database });
     let totalProcessed = 0;
     let totalModified = 0;
     let batch = 0;

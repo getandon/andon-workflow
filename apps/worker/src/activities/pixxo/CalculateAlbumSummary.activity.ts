@@ -16,7 +16,7 @@ export class CalculateAlbumSummaryActivity {
     const batchSize = input.batchSize ?? DEFAULT_BATCH_SIZE;
     const mongoUri = requiredEnv('MONGODB_URI');
 
-    const client = new MongoClient(mongoUri);
+    const client = new MongoClient(mongoUri, { authSource: database });
     let totalAlbums = 0;
     let totalMedias = 0;
     let totalSize = 0;

@@ -14,7 +14,7 @@ export class MarkUserAsLegacyActivity {
     const batchSize = input.batchSize ?? DEFAULT_BATCH_SIZE;
     const mongoUri = requiredEnv('MONGODB_URI');
 
-    const client = new MongoClient(mongoUri);
+    const client = new MongoClient(mongoUri, { authSource: database });
     let totalMatched = 0;
     let totalModified = 0;
     let batch = 0;

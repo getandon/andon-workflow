@@ -28,7 +28,7 @@ export class HydrateUserNamesFromEmailActivity {
       }
     }
 
-    const client = new MongoClient(mongoUri);
+    const client = new MongoClient(mongoUri, { authSource: database });
     let totalProcessed = 0;
     let namesFixed = 0;
     let batch = 0;

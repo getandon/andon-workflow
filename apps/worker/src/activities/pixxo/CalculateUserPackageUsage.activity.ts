@@ -16,7 +16,7 @@ export class CalculateUserPackageUsageActivity {
     const batchSize = input.batchSize ?? DEFAULT_BATCH_SIZE;
     const mongoUri = requiredEnv('MONGODB_URI');
 
-    const client = new MongoClient(mongoUri);
+    const client = new MongoClient(mongoUri, { authSource: database });
     let totalUsers = 0;
     let totalAlbums = 0;
     let totalMediaCount = 0;
