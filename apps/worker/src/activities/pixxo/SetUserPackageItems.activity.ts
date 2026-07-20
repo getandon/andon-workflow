@@ -26,7 +26,12 @@ interface PriceDoc {
   currency: string;
 }
 
-const ITEM_TYPES = ['LIMIT', 'SIZE', 'TRAFFIC', 'YEAR'] as const;
+interface UsageDoc {
+  userId: ObjectId;
+  quantity: number;
+}
+
+const USAGE_BASED_TYPES = new Set(['LIMIT', 'SIZE']);
 
 function newItemId(): ObjectId {
   return new ObjectId();
@@ -39,15 +44,19 @@ function now(): number {
 function upsertItems(
   existingItems: ItemDoc[],
   upgrades: Record<string, { quantity: number; overwriteTime?: boolean }>,
+  usageByType?: Record<string, number>,
 ): { items: ItemDoc[]; changed: boolean } {
   const items = [...existingItems];
   let changed = false;
 
   for (const [type, config] of Object.entries(upgrades)) {
     const idx = items.findIndex((i) => i.type === type);
+    const isUsageBased = USAGE_BASED_TYPES.has(type);
+    const base = isUsageBased ? (usageByType?.[type] ?? 0) : (idx >= 0 ? items[idx].quantity : 0);
+    const newQuantity = base + config.quantity;
+
     if (idx >= 0) {
       const current = items[idx];
-      const newQuantity = current.quantity + config.quantity;
       const updates: Partial<ItemDoc> = { quantity: newQuantity };
       if (config.overwriteTime) {
         updates.createdAt = now();
@@ -61,7 +70,7 @@ function upsertItems(
         _id: newItemId(),
         prices: [],
         type,
-        quantity: config.quantity,
+        quantity: newQuantity,
         createdAt: config.overwriteTime ? now() : undefined,
       });
       changed = true;
@@ -69,6 +78,14 @@ function upsertItems(
   }
 
   return { items, changed };
+}
+
+function buildUsageMap(usageDocs: UsageDoc[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const doc of usageDocs) {
+    map.set(doc.userId.toHexString(), doc.quantity);
+  }
+  return map;
 }
 
 @Injectable()
@@ -127,11 +144,24 @@ export class SetUserPackageItemsActivity {
         }
 
         lastId = users[users.length - 1]._id;
+
+        const userIds = users.map((u) => u._id);
+        const [limitUsageDocs, sizeUsageDocs] = await Promise.all([
+          db.collection('limit_usage').find({ userId: { $in: userIds } }).project<UsageDoc>({ userId: 1, quantity: 1 }).toArray(),
+          db.collection('size_usage').find({ userId: { $in: userIds } }).project<UsageDoc>({ userId: 1, quantity: 1 }).toArray(),
+        ]);
+        const limitUsageMap = buildUsageMap(limitUsageDocs);
+        const sizeUsageMap = buildUsageMap(sizeUsageDocs);
+
         let batchModified = 0;
 
         const bulkOps = users
           .map((u) => {
-            const { items, changed } = upsertItems(u.items ?? [], upgrades);
+            const usageByType: Record<string, number> = {
+              LIMIT: limitUsageMap.get(u._id.toHexString()) ?? 0,
+              SIZE: sizeUsageMap.get(u._id.toHexString()) ?? 0,
+            };
+            const { items, changed } = upsertItems(u.items ?? [], upgrades, usageByType);
             if (!changed) return null;
             return {
               updateOne: {
