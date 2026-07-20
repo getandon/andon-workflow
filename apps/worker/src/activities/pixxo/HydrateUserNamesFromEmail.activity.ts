@@ -4,7 +4,7 @@ import { MongoClient, ObjectId } from 'mongodb';
 import { HydrateUserNamesFromEmailInput, HydrateUserNamesFromEmailOutput, requiredEnv } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
-const DEFAULT_DATABASE = 'pixo';
+const DEFAULT_DATABASE = 'album-server-db';
 const DEFAULT_BATCH_SIZE = 500;
 
 @Injectable()
