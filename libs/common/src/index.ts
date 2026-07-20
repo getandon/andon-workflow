@@ -5,4 +5,5 @@ export * from './shell';
 export * from './temporal-tls';
 export * from './api-tls';
 export * from './cert-info';
+export * from './package-types';
 export * from './interfaces';

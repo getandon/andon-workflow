@@ -20,6 +20,7 @@ import { CalculateUserPackageUsageActivity } from '../activities/pixxo/Calculate
 import { CalculateAlbumSummaryActivity } from '../activities/pixxo/CalculateAlbumSummary.activity';
 import { HydrateUserNamesFromEmailActivity } from '../activities/pixxo/HydrateUserNamesFromEmail.activity';
 import { SetUserPackageItemsActivity } from '../activities/pixxo/SetUserPackageItems.activity';
+import { SetUserPackageItemsByIdentityActivity } from '../activities/pixxo/SetUserPackageItemsByIdentity.activity';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';
@@ -52,6 +53,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly calculateAlbumSummary: CalculateAlbumSummaryActivity,
     private readonly hydrateUserNamesFromEmail: HydrateUserNamesFromEmailActivity,
     private readonly setUserPackageItems: SetUserPackageItemsActivity,
+    private readonly setUserPackageItemsByIdentity: SetUserPackageItemsByIdentityActivity,
   ) {
     const taskQueue = process.env.TEMPORAL_TASK_QUEUE ?? 'source';
     this.workerName = process.env.WORKER_NAME ?? `${os.hostname()}-${taskQueue}`;
@@ -78,6 +80,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
       calculateAlbumSummary: this.calculateAlbumSummary.calculateAlbumSummary.bind(this.calculateAlbumSummary),
       hydrateUserNamesFromEmail: this.hydrateUserNamesFromEmail.hydrateUserNamesFromEmail.bind(this.hydrateUserNamesFromEmail),
       setUserPackageItems: this.setUserPackageItems.setUserPackageItems.bind(this.setUserPackageItems),
+      setUserPackageItemsByIdentity: this.setUserPackageItemsByIdentity.setUserPackageItemsByIdentity.bind(this.setUserPackageItemsByIdentity),
     };
 
     this.worker = await Worker.create({

@@ -9,6 +9,7 @@ import { CalculateUserPackageUsageActivity } from './activities/pixxo/CalculateU
 import { CalculateAlbumSummaryActivity } from './activities/pixxo/CalculateAlbumSummary.activity';
 import { HydrateUserNamesFromEmailActivity } from './activities/pixxo/HydrateUserNamesFromEmail.activity';
 import { SetUserPackageItemsActivity } from './activities/pixxo/SetUserPackageItems.activity';
+import { SetUserPackageItemsByIdentityActivity } from './activities/pixxo/SetUserPackageItemsByIdentity.activity';
 
 @Module({
   providers: [
@@ -22,6 +23,7 @@ import { SetUserPackageItemsActivity } from './activities/pixxo/SetUserPackageIt
     CalculateAlbumSummaryActivity,
     HydrateUserNamesFromEmailActivity,
     SetUserPackageItemsActivity,
+    SetUserPackageItemsByIdentityActivity,
   ],
 })
 export class WorkerModule {}

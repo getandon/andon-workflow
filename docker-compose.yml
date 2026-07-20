@@ -78,7 +78,7 @@ services:
     volumes:
       - mongo-target-data:/data/db
 
-  api:
+  andon-workflow-api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -106,7 +106,7 @@ services:
     ports:
       - "5173:80"
     depends_on:
-      api:
+      andon-workflow-api:
         condition: service_healthy
 
   worker-source:
@@ -123,11 +123,11 @@ services:
       - S3_BUCKET=andon-backups
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin
-      - ANDON_API_URL=http://api:3000
+      - ANDON_API_URL=http://andon-workflow-api:3000
       - API_KEY=dev-key
       - WORKER_HEARTBEAT_INTERVAL_MS=30000
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://api:3000/api/workers/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://andon-workflow-api:3000/api/workers/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -136,7 +136,7 @@ services:
       - temporal
       - minio
       - mongodb-source
-      - api
+      - andon-workflow-api
   worker-target:
     build:
       context: .
@@ -151,11 +151,11 @@ services:
       - S3_BUCKET=andon-backups
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin
-      - ANDON_API_URL=http://api:3000
+      - ANDON_API_URL=http://andon-workflow-api:3000
       - API_KEY=dev-key
       - WORKER_HEARTBEAT_INTERVAL_MS=30000
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://api:3000/api/workers/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://andon-workflow-api:3000/api/workers/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -164,7 +164,7 @@ services:
       - temporal
       - minio
       - mongodb-target
-      - api
+      - andon-workflow-api
 
 volumes:
   minio-data:

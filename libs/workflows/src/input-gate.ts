@@ -9,6 +9,9 @@ import type { Duration } from '@temporalio/common';
 import { msToNumber } from '@temporalio/common';
 import type { Static, TObject } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
+import { TypeSystem } from '@sinclair/typebox/system';
+
+TypeSystem.Format('email', (value) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value));
 import type {
   ApprovalResult,
   InputGateKind,

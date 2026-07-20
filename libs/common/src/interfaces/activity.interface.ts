@@ -1,3 +1,5 @@
+import type { PackageMode, PackageType } from '../package-types';
+
 export interface BackupInput {
   database: string;
 }
@@ -66,6 +68,32 @@ export interface SetUserPackageItemsInput {
 export interface SetUserPackageItemsOutput {
   totalProcessed: number;
   totalModified: number;
+  batches: number;
+  completed: boolean;
+}
+
+export interface PackageItemConfig {
+  type: PackageType;
+  quantity: number;
+  unit: string;
+  mode: PackageMode;
+}
+
+export interface UserPackageEntry {
+  email: string;
+  packages: PackageItemConfig[];
+}
+
+export interface SetUserPackageItemsByIdentityInput {
+  database?: string;
+  batchSize?: number;
+  entries: UserPackageEntry[];
+}
+
+export interface SetUserPackageItemsByIdentityOutput {
+  totalProcessed: number;
+  totalModified: number;
+  notFound: string[];
   batches: number;
   completed: boolean;
 }
