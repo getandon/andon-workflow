@@ -158,7 +158,7 @@ export class GenerateInviteActivity {
         let batch = 0;
 
         while (true) {
-            const filter: any = lastRoleId ? {_id: {$gt: lastRoleId}} : {};
+            const filter: any = lastRoleId ? {_id: {$gt: lastRoleId, role: {$ne: 'OWNER'}}} : {};
 
             const roles = await db
                 .collection('album_role')
