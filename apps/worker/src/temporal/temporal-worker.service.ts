@@ -22,6 +22,10 @@ import { CalculateAlbumSummaryActivity } from '../activities/pixxo/CalculateAlbu
 import { HydrateUserNamesFromEmailActivity } from '../activities/pixxo/HydrateUserNamesFromEmail.activity';
 import { SetUserPackageItemsActivity } from '../activities/pixxo/SetUserPackageItems.activity';
 import { SetUserPackageItemsByIdentityActivity } from '../activities/pixxo/SetUserPackageItemsByIdentity.activity';
+import { GenerateAlbumActivity } from '../activities/pixxo/GenerateAlbumActivity.activity';
+import { GenerateMediaActivity } from '../activities/pixxo/GenerateMediaActivity.activity';
+import { GenerateInviteActivity } from '../activities/pixxo/GenerateInviteActivity.activity';
+import { GenerateOrderActivity } from '../activities/pixxo/GenerateOrderActivity.activity';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';
@@ -55,6 +59,10 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly hydrateUserNamesFromEmail: HydrateUserNamesFromEmailActivity,
     private readonly setUserPackageItems: SetUserPackageItemsActivity,
     private readonly setUserPackageItemsByIdentity: SetUserPackageItemsByIdentityActivity,
+    private readonly generateAlbumActivity: GenerateAlbumActivity,
+    private readonly generateMediaActivity: GenerateMediaActivity,
+    private readonly generateInviteActivity: GenerateInviteActivity,
+    private readonly generateOrderActivity: GenerateOrderActivity,
   ) {
     const taskQueue = process.env.TEMPORAL_TASK_QUEUE ?? 'source';
     this.workerName = process.env.WORKER_NAME ?? `${os.hostname()}-${taskQueue}`;
@@ -82,6 +90,10 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
       hydrateUserNamesFromEmail: this.hydrateUserNamesFromEmail.hydrateUserNamesFromEmail.bind(this.hydrateUserNamesFromEmail),
       setUserPackageItems: this.setUserPackageItems.setUserPackageItems.bind(this.setUserPackageItems),
       setUserPackageItemsByIdentity: this.setUserPackageItemsByIdentity.setUserPackageItemsByIdentity.bind(this.setUserPackageItemsByIdentity),
+      generateAlbumActivity: this.generateAlbumActivity.generateAlbumActivity.bind(this.generateAlbumActivity),
+      generateMediaActivity: this.generateMediaActivity.generateMediaActivity.bind(this.generateMediaActivity),
+      generateInviteActivity: this.generateInviteActivity.generateInviteActivity.bind(this.generateInviteActivity),
+      generateOrderActivity: this.generateOrderActivity.generateOrderActivity.bind(this.generateOrderActivity),
     };
 
     this.worker = await Worker.create({

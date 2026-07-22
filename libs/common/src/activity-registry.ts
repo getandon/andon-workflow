@@ -281,4 +281,105 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
       },
     },
   },
+  {
+    name: 'generateAlbumActivity',
+    label: 'Generate Album Activity',
+    description: 'Backfill activity feed events for album CREATED from the album collection',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
+          batchSize: { type: 'number', title: 'Batch Size', description: 'Albums per batch (default: 50)' },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          totalAlbums: { type: 'number', title: 'Total Albums' },
+          eventsCreated: { type: 'number', title: 'Events Created' },
+          batches: { type: 'number', title: 'Batches' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
+  {
+    name: 'generateMediaActivity',
+    label: 'Generate Media Activity',
+    description: 'Backfill activity feed events for media UPLOADED from the media collection, batched per-user per-album per-day',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
+          batchSize: { type: 'number', title: 'Batch Size', description: 'Media per batch (default: 100)' },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          totalMedia: { type: 'number', title: 'Total Media' },
+          groupsCreated: { type: 'number', title: 'Groups Created' },
+          eventsCreated: { type: 'number', title: 'Events Created' },
+          batches: { type: 'number', title: 'Batches' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
+  {
+    name: 'generateInviteActivity',
+    label: 'Generate Invite Activity',
+    description: 'Backfill activity feed events for invite INVITED and ACCEPTED from album_invite and album_role collections',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
+          inviteBatchSize: { type: 'number', title: 'Invite Batch Size', description: 'Invites per batch (default: 100)' },
+          roleBatchSize: { type: 'number', title: 'Role Batch Size', description: 'Roles per batch (default: 100)' },
+          phase: {
+            type: 'string',
+            title: 'Phase',
+            description: 'Which phase to run: "invited", "accepted", or omit for both',
+          },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          invitedCreated: { type: 'number', title: 'Invited Created' },
+          acceptedCreated: { type: 'number', title: 'Accepted Created' },
+          invitesProcessed: { type: 'number', title: 'Invites Processed' },
+          rolesProcessed: { type: 'number', title: 'Roles Processed' },
+          batches: { type: 'number', title: 'Batches' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
+  {
+    name: 'generateOrderActivity',
+    label: 'Generate Order Activity',
+    description: 'Backfill activity feed events for order PURCHASED from the order collection',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
+          batchSize: { type: 'number', title: 'Batch Size', description: 'Orders per batch (default: 50)' },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          totalOrders: { type: 'number', title: 'Total Orders' },
+          eventsCreated: { type: 'number', title: 'Events Created' },
+          batches: { type: 'number', title: 'Batches' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
 ];

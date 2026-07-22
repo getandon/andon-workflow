@@ -10,6 +10,10 @@ import { CalculateAlbumSummaryActivity } from './activities/pixxo/CalculateAlbum
 import { HydrateUserNamesFromEmailActivity } from './activities/pixxo/HydrateUserNamesFromEmail.activity';
 import { SetUserPackageItemsActivity } from './activities/pixxo/SetUserPackageItems.activity';
 import { SetUserPackageItemsByIdentityActivity } from './activities/pixxo/SetUserPackageItemsByIdentity.activity';
+import { GenerateAlbumActivity } from './activities/pixxo/GenerateAlbumActivity.activity';
+import { GenerateMediaActivity } from './activities/pixxo/GenerateMediaActivity.activity';
+import { GenerateInviteActivity } from './activities/pixxo/GenerateInviteActivity.activity';
+import { GenerateOrderActivity } from './activities/pixxo/GenerateOrderActivity.activity';
 
 @Module({
   providers: [
@@ -24,6 +28,10 @@ import { SetUserPackageItemsByIdentityActivity } from './activities/pixxo/SetUse
     HydrateUserNamesFromEmailActivity,
     SetUserPackageItemsActivity,
     SetUserPackageItemsByIdentityActivity,
+    GenerateAlbumActivity,
+    GenerateMediaActivity,
+    GenerateInviteActivity,
+    GenerateOrderActivity,
   ],
 })
 export class WorkerModule {}

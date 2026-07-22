@@ -129,3 +129,61 @@ export interface CalculateAlbumSummaryOutput {
   batches: number;
   completed: boolean;
 }
+
+export interface GenerateAlbumActivityInput {
+  database?: string;
+  batchSize?: number;
+  lastId?: string;
+}
+
+export interface GenerateAlbumActivityOutput {
+  totalAlbums: number;
+  eventsCreated: number;
+  batches: number;
+  completed: boolean;
+}
+
+export interface GenerateMediaActivityInput {
+  database?: string;
+  batchSize?: number;
+  lastId?: string;
+}
+
+export interface GenerateMediaActivityOutput {
+  totalMedia: number;
+  groupsCreated: number;
+  eventsCreated: number;
+  batches: number;
+  completed: boolean;
+}
+
+export interface GenerateInviteActivityInput {
+  database?: string;
+  inviteBatchSize?: number;
+  roleBatchSize?: number;
+  lastInviteId?: string;
+  lastRoleId?: string;
+  phase?: 'invited' | 'accepted';
+}
+
+export interface GenerateInviteActivityOutput {
+  invitedCreated: number;
+  acceptedCreated: number;
+  invitesProcessed: number;
+  rolesProcessed: number;
+  batches: number;
+  completed: boolean;
+}
+
+export interface GenerateOrderActivityInput {
+  database?: string;
+  batchSize?: number;
+  lastId?: string;
+}
+
+export interface GenerateOrderActivityOutput {
+  totalOrders: number;
+  eventsCreated: number;
+  batches: number;
+  completed: boolean;
+}
