@@ -163,7 +163,6 @@ export interface GenerateInviteActivityInput {
   roleBatchSize?: number;
   lastInviteId?: string;
   lastRoleId?: string;
-  phase?: 'invited' | 'accepted';
 }
 
 export interface GenerateInviteActivityOutput {

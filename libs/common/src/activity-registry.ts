@@ -339,11 +339,6 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
           database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
           inviteBatchSize: { type: 'number', title: 'Invite Batch Size', description: 'Invites per batch (default: 100)' },
           roleBatchSize: { type: 'number', title: 'Role Batch Size', description: 'Roles per batch (default: 100)' },
-          phase: {
-            type: 'string',
-            title: 'Phase',
-            description: 'Which phase to run: "invited", "accepted", or omit for both',
-          },
         },
       },
       output: {

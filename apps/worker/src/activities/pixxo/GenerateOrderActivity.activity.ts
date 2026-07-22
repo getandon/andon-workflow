@@ -88,6 +88,7 @@ export class GenerateOrderActivity {
             await db.collection('activity_event').insertOne({
               _id: eventObjId,
               eventId,
+              userId: userObjId,
               actorId: userObjId,
               actorName,
               verb: 'PURCHASED',
