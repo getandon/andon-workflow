@@ -120,14 +120,18 @@ function WorkersPage() {
                     Activities
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {w.activities.map((a) => (
-                      <span
-                        key={a}
-                        className="font-mono rounded-sm border border-border bg-background/60 px-1.5 py-0.5 text-[10px] text-foreground/80"
-                      >
-                        {a}
-                      </span>
-                    ))}
+                    {w.activities.map((a) => {
+                      const name = typeof a === 'string' ? a : a.name;
+                      const label = typeof a === 'string' ? a : a.label;
+                      return (
+                        <span
+                          key={name}
+                          className="font-mono rounded-sm border border-border bg-background/60 px-1.5 py-0.5 text-[10px] text-foreground/80"
+                        >
+                          {label}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="flex justify-end">

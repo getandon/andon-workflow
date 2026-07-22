@@ -9,7 +9,7 @@ export interface ApiWorker {
   status: 'ONLINE' | 'DEGRADED' | 'OFFLINE';
   lastHeartbeat: string | null;
   lastHeartbeatSec: number | null;
-  activities: string[];
+  activities: string[] | { name: string; label: string; description: string; schema: unknown }[];
   tlsEnabled: boolean;
   temporalTls: boolean;
   apiTls: boolean;
