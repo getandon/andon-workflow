@@ -1,25 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateMediaActivityInput, GenerateMediaActivityOutput, requiredEnv } from '@andon-workflow/lib';
+import { GenerateMediaActivityInput, GenerateMediaActivityOutput, requiredEnv, toHex, toObjectId } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
 const DEFAULT_BATCH_SIZE = 100;
 
 const VISIBLE_TO_ROLES = ['OWNER', 'MANAGER', 'GUEST'];
-
-function toHex(v: any): string {
-  if (!v) return '';
-  if (typeof v === 'string') return v;
-  if (v.toHexString) return v.toHexString();
-  return String(v);
-}
-
-function toObjectId(v: any): ObjectId {
-  if (v instanceof ObjectId) return v;
-  return new ObjectId(toHex(v));
-}
 
 interface MediaGroup {
   albumId: string;
@@ -156,8 +144,10 @@ export class GenerateMediaActivity {
         for (const media of mediaDocs) {
           const albumId = toHex(media.album);
           const authorId = toHex(media.author);
-          const albumObjId = toObjectId(media.album);
-          const authorObjId = toObjectId(media.author);
+          let albumObjId = toObjectId(media.album);
+          let authorObjId = toObjectId(media.author);
+          if (!albumObjId) albumObjId = new ObjectId('000000000000000000000000');
+          if (!authorObjId) authorObjId = new ObjectId('000000000000000000000000');
           const uploadAt = Number(media.uploadAt) || media._id.getTimestamp().getTime();
           const date = new Date(uploadAt).toISOString().substring(0, 10);
 

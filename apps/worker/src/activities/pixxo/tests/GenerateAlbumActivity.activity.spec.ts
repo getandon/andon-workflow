@@ -44,6 +44,7 @@ describe('GenerateAlbumActivity', () => {
         if (!mockCollectionFns[name]) {
           mockCollectionFns[name] = {
             find: jest.fn(),
+            findOne: jest.fn().mockResolvedValue(null),
             insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
             updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
           };
@@ -133,7 +134,33 @@ describe('GenerateAlbumActivity', () => {
     expect(insertCall.actorName).toBe('Test User');
   });
 
-  it('should skip albums without author', async () => {
+  it('should find owner from album_role when album has no author', async () => {
+    const ownerId = new ObjectId();
+    const albumId = new ObjectId();
+    const albums = [
+      { _id: albumId, author: null, name: 'Orphan Album', type: 'WEDDING', date: 1700000000000, createdAt: 1700000000000 },
+    ];
+    setupAlbumDocs(albums);
+
+    const ownerRole = { user: ownerId };
+    const ownerUser = { _id: ownerId, name: 'Owner From Role', email: 'owner@example.com' };
+    mockCollectionFns['album_role'] = {
+      findOne: jest.fn().mockResolvedValue(ownerRole),
+    };
+    mockCollectionFns['user'] = {
+      find: jest.fn(() => { throw new Error('should not be called'); }),
+      findOne: jest.fn().mockResolvedValue(ownerUser),
+    };
+
+    const result = await generateAlbumActivity.generateAlbumActivity({ database: 'test-db' });
+
+    expect(result.eventsCreated).toBe(1);
+    const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
+    expect(insertCall.actorId.toHexString()).toBe(ownerId.toHexString());
+    expect(insertCall.actorName).toBe('Owner From Role');
+  });
+
+  it('should use placeholder actor for albums without author', async () => {
     const albumId = new ObjectId();
     const albums = [
       { _id: albumId, author: null, name: 'Orphan Album', type: 'WEDDING', date: 1700000000000, createdAt: 1700000000000 },
@@ -142,8 +169,10 @@ describe('GenerateAlbumActivity', () => {
 
     const result = await generateAlbumActivity.generateAlbumActivity({ database: 'test-db' });
 
-    expect(result.totalAlbums).toBe(0);
-    expect(result.eventsCreated).toBe(0);
+    expect(result.totalAlbums).toBe(1);
+    expect(result.eventsCreated).toBe(1);
+    const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
+    expect(insertCall.actorId.toHexString()).toBe('000000000000000000000000');
   });
 
   it('should fall back to _id timestamp when createdAt is null', async () => {

@@ -1,23 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv } from '@andon-workflow/lib';
+import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv, toHex, toObjectId } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
 const DEFAULT_BATCH_SIZE = 50;
-
-function toHex(v: any): string {
-  if (!v) return '';
-  if (typeof v === 'string') return v;
-  if (v.toHexString) return v.toHexString();
-  return String(v);
-}
-
-function toObjectId(v: any): ObjectId {
-  if (v instanceof ObjectId) return v;
-  return new ObjectId(toHex(v));
-}
 
 @Injectable()
 export class GenerateOrderActivity {
@@ -54,7 +42,7 @@ export class GenerateOrderActivity {
 
         if (orders.length === 0) break;
 
-        const userIds = [...new Set(orders.filter(o => o.user).map(o => toHex(o.user)))];
+        const userIds = [...new Set(orders.filter(o => o.user).map(o => toHex(o.user)).filter(h => h && h.length === 24))];
         const users = userIds.length > 0
           ? await db
             .collection('user')
@@ -71,13 +59,13 @@ export class GenerateOrderActivity {
         for (const order of orders) {
           const orderId = order._id.toHexString();
           const actorHex = toHex(order.user);
-          if (!actorHex) {
-            jobLog.warn(`Order ${orderId} has no user, skipping`);
-            continue;
+          let userObjId = toObjectId(order.user);
+          if (!userObjId) {
+            jobLog.warn(`Order ${orderId} has no user or invalid user reference, using placeholder actor`);
+            userObjId = new ObjectId('000000000000000000000000');
           }
 
-          const userObjId = toObjectId(order.user);
-          const user = userMap.get(actorHex);
+          const user = actorHex ? userMap.get(actorHex) : undefined;
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_PaymentCaptured_${orderId}`;

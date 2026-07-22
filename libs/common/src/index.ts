@@ -8,3 +8,4 @@ export * from './cert-info';
 export * from './package-types';
 export * from './interfaces';
 export * from './activity-registry';
+export * from './id-helpers';

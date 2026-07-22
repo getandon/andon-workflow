@@ -1,25 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv } from '@andon-workflow/lib';
+import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv, toHex, toObjectId } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
 const DEFAULT_BATCH_SIZE = 50;
 
 const VISIBLE_TO_ROLES = ['OWNER', 'MANAGER', 'GUEST'];
-
-function toHex(v: any): string {
-  if (!v) return '';
-  if (typeof v === 'string') return v;
-  if (v.toHexString) return v.toHexString();
-  return String(v);
-}
-
-function toObjectId(v: any): ObjectId {
-  if (v instanceof ObjectId) return v;
-  return new ObjectId(toHex(v));
-}
 
 @Injectable()
 export class GenerateAlbumActivity {
@@ -59,7 +47,7 @@ export class GenerateAlbumActivity {
 
         if (albums.length === 0) break;
 
-        const authorIds = [...new Set(albums.filter(a => a.author).map(a => toHex(a.author)))];
+        const authorIds = [...new Set(albums.filter(a => a.author).map(a => toHex(a.author)).filter(h => h && h.length === 24))];
         const users = authorIds.length > 0
           ? await db
             .collection('user')
@@ -75,14 +63,37 @@ export class GenerateAlbumActivity {
 
         for (const album of albums) {
           const albumId = album._id.toHexString();
-          const actorId = toHex(album.author);
-          if (!actorId) {
-            jobLog.warn(`Album ${albumId} has no author, skipping`);
-            continue;
+          let actorObjId = toObjectId(album.author);
+          let actorId = toHex(album.author);
+
+          if (!actorObjId) {
+            const ownerRole = await db.collection('album_role').findOne(
+              { album: album._id, userRole: 'OWNER' },
+              { projection: { user: 1 } },
+            );
+            if (ownerRole?.user) {
+              actorObjId = toObjectId(ownerRole.user);
+              actorId = toHex(ownerRole.user);
+              if (!actorObjId) actorObjId = new ObjectId('000000000000000000000000');
+            }
           }
 
-          const actorObjId = toObjectId(album.author);
-          const user = userMap.get(actorId);
+          if (!actorObjId) {
+            jobLog.warn(`Album ${albumId} has no author and no OWNER in album_role, using placeholder actor`);
+            actorObjId = new ObjectId('000000000000000000000000');
+            actorId = '';
+          }
+
+          let user = actorId ? userMap.get(actorId) : undefined;
+          if (!user && actorId) {
+            const ownerUser = await db
+              .collection('user')
+              .findOne({ _id: new ObjectId(actorId) }, { projection: { name: 1, email: 1 } });
+            if (ownerUser) {
+              user = { name: ownerUser.name, email: ownerUser.email };
+              userMap.set(actorId, user);
+            }
+          }
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_AlbumCreated_${albumId}`;

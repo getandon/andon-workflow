@@ -1,7 +1,7 @@
 import {Injectable} from '@nestjs/common';
 import {Context} from '@temporalio/activity';
 import {MongoClient, ObjectId} from 'mongodb';
-import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv} from '@andon-workflow/lib';
+import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv, toHex, toObjectId} from '@andon-workflow/lib';
 import {jobLog} from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -10,18 +10,6 @@ const DEFAULT_ROLE_BATCH_SIZE = 100;
 
 const INVITED_VISIBLE_ROLES = ['OWNER', 'MANAGER'];
 const ACCEPTED_VISIBLE_ROLES = ['OWNER', 'MANAGER'];
-
-function toHex(v: any): string {
-    if (!v) return '';
-    if (typeof v === 'string') return v;
-    if (v.toHexString) return v.toHexString();
-    return String(v);
-}
-
-function toObjectId(v: any): ObjectId {
-    if (v instanceof ObjectId) return v;
-    return new ObjectId(toHex(v));
-}
 
 @Injectable()
 export class GenerateInviteActivity {
@@ -57,7 +45,7 @@ export class GenerateInviteActivity {
 
             if (invites.length === 0) break;
 
-            const authorIds = [...new Set(invites.map((i: any) => toHex(i.author)))];
+            const authorIds = [...new Set(invites.map((i: any) => toHex(i.author)).filter((h: string) => h && h.length === 24))];
             const users = authorIds.length > 0
                 ? await db
                     .collection('user')
@@ -72,8 +60,10 @@ export class GenerateInviteActivity {
             }
 
             for (const invite of invites) {
-                const authorObjId = toObjectId(invite.author);
-                const albumObjId = toObjectId(invite.album);
+                let authorObjId = toObjectId(invite.author);
+                let albumObjId = toObjectId(invite.album);
+                if (!authorObjId) authorObjId = new ObjectId('000000000000000000000000');
+                if (!albumObjId) albumObjId = new ObjectId('000000000000000000000000');
                 const actorHex = toHex(invite.author);
                 const user = userMap.get(actorHex);
                 const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
@@ -186,8 +176,8 @@ export class GenerateInviteActivity {
 
             if (roles.length === 0) break;
 
-            const albumIds = [...new Set(roles.map((r: any) => toHex(r.album)))];
-            const memberUserIds = [...new Set(roles.map((r: any) => toHex(r.user)))];
+            const albumIds = [...new Set(roles.map((r: any) => toHex(r.album)).filter((h: string) => h && h.length === 24))];
+            const memberUserIds = [...new Set(roles.map((r: any) => toHex(r.user)).filter((h: string) => h && h.length === 24))];
 
             const albums = await db
                 .collection('album')
@@ -214,8 +204,10 @@ export class GenerateInviteActivity {
             }
 
             for (const role of roles) {
-                const albumObjId = toObjectId(role.album);
-                const userObjId = toObjectId(role.user);
+                let albumObjId = toObjectId(role.album);
+                let userObjId = toObjectId(role.user);
+                if (!albumObjId) albumObjId = new ObjectId('000000000000000000000000');
+                if (!userObjId) userObjId = new ObjectId('000000000000000000000000');
                 const albumId = toHex(role.album);
                 const userId = toHex(role.user);
                 const albumAuthor = albumAuthorMap.get(albumId);

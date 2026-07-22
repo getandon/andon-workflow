@@ -175,14 +175,16 @@ describe('GenerateOrderActivity', () => {
     expect(result.eventsCreated).toBe(1);
   });
 
-  it('should skip orders without user', async () => {
+  it('should use placeholder actor for orders without user', async () => {
     const orderId = new ObjectId();
     setupOrderDocs([
       { _id: orderId, user: null, createdAt: 1700000000000 },
     ]);
 
     const result = await generateOrderActivity.generateOrderActivity({ database: 'test-db' });
-    expect(result.eventsCreated).toBe(0);
+    expect(result.eventsCreated).toBe(1);
+    const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
+    expect(insertCall.actorId.toHexString()).toBe('000000000000000000000000');
   });
 
   it('should be idempotent on duplicate eventId', async () => {
