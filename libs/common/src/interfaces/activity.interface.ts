@@ -187,3 +187,14 @@ export interface GenerateOrderActivityOutput {
   batches: number;
   completed: boolean;
 }
+
+export interface ClearActivityDataInput {
+  database?: string;
+}
+
+export interface ClearActivityDataOutput {
+  activityEventsDeleted: number;
+  activitySummariesDeleted: number;
+  processedBusEventsDeleted: number;
+  completed: boolean;
+}

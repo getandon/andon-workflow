@@ -82,11 +82,12 @@ export class GenerateInviteActivity {
             const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
             const eventId = `Backfill_AlbumInvitesCreated_${invite._id.toHexString()}`;
-            const createdAt = invite.createdAt || new Date().getTime();
+            const createdAt = invite.createdAt || invite._id.getTimestamp().getTime();
 
             try {
+              const eventObjId = new ObjectId();
               await db.collection('activity_event').insertOne({
-                _id: new ObjectId(),
+                _id: eventObjId,
                 eventId,
                 albumId: invite.album,
                 actorId: invite.author,
@@ -125,7 +126,7 @@ export class GenerateInviteActivity {
                     visibleToRoles: INVITED_VISIBLE_ROLES,
                     visibleToUserIds: [],
                   },
-                  $addToSet: { eventIds: new ObjectId() },
+                  $addToSet: { eventIds: eventObjId },
                   $inc: { count: 1 },
                 },
                 { upsert: true },
@@ -172,11 +173,12 @@ export class GenerateInviteActivity {
           const roles = await db
             .collection('album_role')
             .find(filter)
-            .project<{ _id: ObjectId; album: ObjectId; user: ObjectId; userRole: string }>({
+            .project<{ _id: ObjectId; album: ObjectId; user: ObjectId; userRole: string; createdAt: number }>({
               _id: 1,
               album: 1,
               user: 1,
               userRole: 1,
+              createdAt: 1,
             })
             .sort({ _id: 1 })
             .limit(roleBatchSize)
@@ -234,17 +236,20 @@ export class GenerateInviteActivity {
             });
 
             if (!invite) {
-              rolesProcessed++;
-              continue;
+              // No matching invite found — still create the ACCEPTED event
+              // using the album_role's own timestamp as fallback
             }
 
             const actorName = user.name || (user.email ? user.email.split('@')[0] : 'Unknown');
             const eventId = `Backfill_AlbumInviteAccepted_${albumId}_${userId}`;
-            const createdAt = invite.createdAt || new Date().getTime();
+            const createdAt = invite
+              ? (invite.createdAt || (invite._id as ObjectId).getTimestamp().getTime())
+              : (role.createdAt || role._id.getTimestamp().getTime());
 
             try {
+              const eventObjId = new ObjectId();
               await db.collection('activity_event').insertOne({
-                _id: new ObjectId(),
+                _id: eventObjId,
                 eventId,
                 albumId: role.album,
                 actorId: role.user,
@@ -283,7 +288,7 @@ export class GenerateInviteActivity {
                     visibleToRoles: ACCEPTED_VISIBLE_ROLES,
                     visibleToUserIds: [],
                   },
-                  $addToSet: { eventIds: new ObjectId() },
+                  $addToSet: { eventIds: eventObjId },
                   $inc: { count: 1 },
                 },
                 { upsert: true },

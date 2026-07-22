@@ -382,4 +382,26 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
       },
     },
   },
+  {
+    name: 'clearActivityData',
+    label: 'Clear Activity Data',
+    description: 'Delete all documents from activity_event, activity_summary, and processed_bus_event collections. Destructive — use before re-running backfill.',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          activityEventsDeleted: { type: 'number', title: 'Activity Events Deleted' },
+          activitySummariesDeleted: { type: 'number', title: 'Activity Summaries Deleted' },
+          processedBusEventsDeleted: { type: 'number', title: 'Processed Bus Events Deleted' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
 ];

@@ -73,11 +73,12 @@ export class GenerateAlbumActivity {
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_AlbumCreated_${albumId}`;
-          const createdAt = album.createdAt || new Date().getTime();
+          const createdAt = album.createdAt || album._id.getTimestamp().getTime();
 
           try {
+            const eventObjId = new ObjectId();
             await db.collection('activity_event').insertOne({
-              _id: new ObjectId(),
+              _id: eventObjId,
               eventId,
               albumId: album._id,
               actorId: album.author!,
@@ -116,7 +117,7 @@ export class GenerateAlbumActivity {
                   visibleToRoles: VISIBLE_TO_ROLES,
                   visibleToUserIds: [],
                 },
-                $addToSet: { eventIds: new ObjectId() },
+                $addToSet: { eventIds: eventObjId },
                 $inc: { count: 1 },
               },
               { upsert: true },

@@ -26,6 +26,7 @@ import { GenerateAlbumActivity } from '../activities/pixxo/GenerateAlbumActivity
 import { GenerateMediaActivity } from '../activities/pixxo/GenerateMediaActivity.activity';
 import { GenerateInviteActivity } from '../activities/pixxo/GenerateInviteActivity.activity';
 import { GenerateOrderActivity } from '../activities/pixxo/GenerateOrderActivity.activity';
+import { ClearActivityDataActivity } from '../activities/pixxo/ClearActivityData.activity';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';
@@ -63,6 +64,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly generateMediaActivity: GenerateMediaActivity,
     private readonly generateInviteActivity: GenerateInviteActivity,
     private readonly generateOrderActivity: GenerateOrderActivity,
+    private readonly clearActivityData: ClearActivityDataActivity,
   ) {
     const taskQueue = process.env.TEMPORAL_TASK_QUEUE ?? 'source';
     this.workerName = process.env.WORKER_NAME ?? `${os.hostname()}-${taskQueue}`;
@@ -94,6 +96,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
       generateMediaActivity: this.generateMediaActivity.generateMediaActivity.bind(this.generateMediaActivity),
       generateInviteActivity: this.generateInviteActivity.generateInviteActivity.bind(this.generateInviteActivity),
       generateOrderActivity: this.generateOrderActivity.generateOrderActivity.bind(this.generateOrderActivity),
+      clearActivityData: this.clearActivityData.clearActivityData.bind(this.clearActivityData),
     };
 
     this.worker = await Worker.create({

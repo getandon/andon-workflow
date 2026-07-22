@@ -68,11 +68,12 @@ export class GenerateOrderActivity {
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_PaymentCaptured_${orderId}`;
-          const createdAt = order.createdAt || new Date().getTime();
+          const createdAt = order.createdAt || order._id.getTimestamp().getTime();
 
           try {
+            const eventObjId = new ObjectId();
             await db.collection('activity_event').insertOne({
-              _id: new ObjectId(),
+              _id: eventObjId,
               eventId,
               actorId: order.user!,
               actorName,
@@ -110,7 +111,7 @@ export class GenerateOrderActivity {
                   visibleToRoles: [],
                   visibleToUserIds: [order.user!],
                 },
-                $addToSet: { eventIds: new ObjectId() },
+                $addToSet: { eventIds: eventObjId },
                 $inc: { count: 1 },
               },
               { upsert: true },

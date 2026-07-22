@@ -60,8 +60,9 @@ export class GenerateMediaActivity {
         const createdAt = group.earliestTimestamp;
 
         try {
+          const eventObjId = new ObjectId();
           await db.collection('activity_event').insertOne({
-            _id: new ObjectId(),
+            _id: eventObjId,
             eventId,
             albumId: group.albumObjId,
             actorId: group.authorObjId,
@@ -101,28 +102,17 @@ export class GenerateMediaActivity {
                 visibleToRoles: VISIBLE_TO_ROLES,
                 visibleToUserIds: [],
               },
-              $addToSet: { eventIds: new ObjectId() },
-              $inc: { count: 1 },
+              $addToSet: {
+                eventIds: eventObjId,
+                'metadata.mediaIds': { $each: group.mediaIds },
+              },
+              $inc: {
+                count: 1,
+                'metadata.photoCount': group.mediaIds.length,
+              },
             },
             { upsert: true },
           );
-
-          if (group.mediaIds.length > 0) {
-            await db.collection('activity_summary').updateOne(
-              {
-                albumId: group.albumObjId,
-                verb: 'UPLOADED',
-                actorId: group.authorObjId,
-                timeWindow: group.date,
-              },
-              {
-                $addToSet: {
-                  'metadata.mediaIds': { $each: group.mediaIds },
-                },
-                $inc: { 'metadata.photoCount': group.mediaIds.length },
-              },
-            );
-          }
 
           eventsCreated++;
         } catch (err: any) {
@@ -155,7 +145,7 @@ export class GenerateMediaActivity {
         for (const media of mediaDocs) {
           const albumId = media.album.toHexString();
           const authorId = media.author.toHexString();
-          const uploadAt = media.uploadAt || new Date().getTime();
+          const uploadAt = media.uploadAt || media._id.getTimestamp().getTime();
           const date = new Date(uploadAt).toISOString().substring(0, 10);
 
           if (lastDate !== null && date !== lastDate) {

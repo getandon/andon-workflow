@@ -14,6 +14,7 @@ import { GenerateAlbumActivity } from './activities/pixxo/GenerateAlbumActivity.
 import { GenerateMediaActivity } from './activities/pixxo/GenerateMediaActivity.activity';
 import { GenerateInviteActivity } from './activities/pixxo/GenerateInviteActivity.activity';
 import { GenerateOrderActivity } from './activities/pixxo/GenerateOrderActivity.activity';
+import { ClearActivityDataActivity } from './activities/pixxo/ClearActivityData.activity';
 
 @Module({
   providers: [
@@ -32,6 +33,7 @@ import { GenerateOrderActivity } from './activities/pixxo/GenerateOrderActivity.
     GenerateMediaActivity,
     GenerateInviteActivity,
     GenerateOrderActivity,
+    ClearActivityDataActivity,
   ],
 })
 export class WorkerModule {}
