@@ -7,6 +7,18 @@ import { jobLog } from '../../job-log';
 const DEFAULT_DATABASE = 'album-server-db';
 const DEFAULT_BATCH_SIZE = 50;
 
+function toHex(v: any): string {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  if (v.toHexString) return v.toHexString();
+  return String(v);
+}
+
+function toObjectId(v: any): ObjectId {
+  if (v instanceof ObjectId) return v;
+  return new ObjectId(toHex(v));
+}
+
 @Injectable()
 export class GenerateOrderActivity {
   async generateOrderActivity(
@@ -27,11 +39,11 @@ export class GenerateOrderActivity {
       const db = client.db(database);
 
       while (true) {
-        const filter: any = lastId ? { _id: { $gt: lastId }, status: { $ne: 'NEW' } } : { status: { $ne: 'NEW' } };
+        const filter: any = lastId ? { _id: { $gt: lastId } } : {};
         const orders = await db
           .collection('order')
           .find(filter)
-          .project<{ _id: ObjectId; user?: ObjectId; createdAt: number }>({
+          .project<{ _id: ObjectId; user?: any; createdAt: number }>({
             _id: 1,
             user: 1,
             createdAt: 1,
@@ -42,7 +54,7 @@ export class GenerateOrderActivity {
 
         if (orders.length === 0) break;
 
-        const userIds = [...new Set(orders.filter(o => o.user).map(o => o.user!.toHexString()))];
+        const userIds = [...new Set(orders.filter(o => o.user).map(o => toHex(o.user)))];
         const users = userIds.length > 0
           ? await db
             .collection('user')
@@ -58,31 +70,32 @@ export class GenerateOrderActivity {
 
         for (const order of orders) {
           const orderId = order._id.toHexString();
-          const actorId = order.user?.toHexString();
-          if (!actorId) {
+          const actorHex = toHex(order.user);
+          if (!actorHex) {
             jobLog.warn(`Order ${orderId} has no user, skipping`);
             continue;
           }
 
-          const user = userMap.get(actorId);
+          const userObjId = toObjectId(order.user);
+          const user = userMap.get(actorHex);
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_PaymentCaptured_${orderId}`;
-          const createdAt = order.createdAt || order._id.getTimestamp().getTime();
+          const createdAt = Number(order.createdAt) || order._id.getTimestamp().getTime();
 
           try {
             const eventObjId = new ObjectId();
             await db.collection('activity_event').insertOne({
               _id: eventObjId,
               eventId,
-              actorId: order.user!,
+              actorId: userObjId,
               actorName,
               verb: 'PURCHASED',
               targetType: 'PACKAGE',
               targetId: order._id,
               metadata: { orderId },
               visibleToRoles: [],
-              visibleToUserIds: [order.user!],
+              visibleToUserIds: [userObjId],
               visibilityVersion: 0,
               createdAt,
             });
@@ -90,17 +103,17 @@ export class GenerateOrderActivity {
             const isoTs = new Date(createdAt).toISOString().substring(0, 23);
             await db.collection('activity_summary').updateOne(
               {
-                userId: order.user!,
+                userId: userObjId,
                 verb: 'PURCHASED',
-                actorId: order.user!,
+                actorId: userObjId,
                 timeWindow: isoTs,
               },
               {
                 $setOnInsert: {
                   _id: new ObjectId(),
-                  userId: order.user!,
+                  userId: userObjId,
                   verb: 'PURCHASED',
-                  actorId: order.user!,
+                  actorId: userObjId,
                   timeWindow: isoTs,
                   firstEventAt: createdAt,
                   metadata: { orderId },
@@ -109,7 +122,7 @@ export class GenerateOrderActivity {
                   lastEventAt: createdAt,
                   actorName,
                   visibleToRoles: [],
-                  visibleToUserIds: [order.user!],
+                  visibleToUserIds: [userObjId],
                 },
                 $addToSet: { eventIds: eventObjId },
                 $inc: { count: 1 },

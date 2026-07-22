@@ -9,6 +9,18 @@ const DEFAULT_BATCH_SIZE = 50;
 
 const VISIBLE_TO_ROLES = ['OWNER', 'MANAGER', 'GUEST'];
 
+function toHex(v: any): string {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  if (v.toHexString) return v.toHexString();
+  return String(v);
+}
+
+function toObjectId(v: any): ObjectId {
+  if (v instanceof ObjectId) return v;
+  return new ObjectId(toHex(v));
+}
+
 @Injectable()
 export class GenerateAlbumActivity {
   async generateAlbumActivity(
@@ -33,7 +45,7 @@ export class GenerateAlbumActivity {
         const albums = await db
           .collection('album')
           .find(filter)
-          .project<{ _id: ObjectId; author?: ObjectId; name: string; type: string; date: number; createdAt: number }>({
+          .project<{ _id: ObjectId; author?: any; name: string; type: string; date: number; createdAt: number }>({
             _id: 1,
             author: 1,
             name: 1,
@@ -47,7 +59,7 @@ export class GenerateAlbumActivity {
 
         if (albums.length === 0) break;
 
-        const authorIds = [...new Set(albums.filter(a => a.author).map(a => a.author!.toHexString()))];
+        const authorIds = [...new Set(albums.filter(a => a.author).map(a => toHex(a.author)))];
         const users = authorIds.length > 0
           ? await db
             .collection('user')
@@ -63,17 +75,18 @@ export class GenerateAlbumActivity {
 
         for (const album of albums) {
           const albumId = album._id.toHexString();
-          const actorId = album.author?.toHexString();
+          const actorId = toHex(album.author);
           if (!actorId) {
             jobLog.warn(`Album ${albumId} has no author, skipping`);
             continue;
           }
 
+          const actorObjId = toObjectId(album.author);
           const user = userMap.get(actorId);
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_AlbumCreated_${albumId}`;
-          const createdAt = album.createdAt || album._id.getTimestamp().getTime();
+          const createdAt = Number(album.createdAt) || album._id.getTimestamp().getTime();
 
           try {
             const eventObjId = new ObjectId();
@@ -81,12 +94,12 @@ export class GenerateAlbumActivity {
               _id: eventObjId,
               eventId,
               albumId: album._id,
-              actorId: album.author!,
+              actorId: actorObjId,
               actorName,
               verb: 'CREATED',
               targetType: 'ALBUM',
               targetId: album._id,
-              metadata: { name: album.name, type: album.type, date: album.date },
+              metadata: { name: album.name, type: album.type, date: Number(album.date) || 0 },
               visibleToRoles: VISIBLE_TO_ROLES,
               visibleToUserIds: [],
               visibilityVersion: 0,
@@ -98,18 +111,18 @@ export class GenerateAlbumActivity {
               {
                 albumId: album._id,
                 verb: 'CREATED',
-                actorId: album.author!,
+                actorId: actorObjId,
                 timeWindow: isoDate,
               },
               {
                 $setOnInsert: {
                   _id: new ObjectId(),
                   verb: 'CREATED',
-                  actorId: album.author!,
+                  actorId: actorObjId,
                   timeWindow: isoDate,
                   firstEventAt: createdAt,
                   albumId: album._id,
-                  metadata: { name: album.name, type: album.type, date: album.date },
+                  metadata: { name: album.name, type: album.type, date: Number(album.date) || 0 },
                 },
                 $set: {
                   lastEventAt: createdAt,

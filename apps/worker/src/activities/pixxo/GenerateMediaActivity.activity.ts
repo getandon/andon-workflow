@@ -9,6 +9,18 @@ const DEFAULT_BATCH_SIZE = 100;
 
 const VISIBLE_TO_ROLES = ['OWNER', 'MANAGER', 'GUEST'];
 
+function toHex(v: any): string {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  if (v.toHexString) return v.toHexString();
+  return String(v);
+}
+
+function toObjectId(v: any): ObjectId {
+  if (v instanceof ObjectId) return v;
+  return new ObjectId(toHex(v));
+}
+
 interface MediaGroup {
   albumId: string;
   albumObjId: ObjectId;
@@ -46,7 +58,6 @@ export class GenerateMediaActivity {
       }
 
       async function flushGroup(group: MediaGroup): Promise<void> {
-        const actorId = group.authorObjId;
         const key = groupKey(group.albumId, group.authorId, group.date);
         activeGroups.delete(key);
 
@@ -94,10 +105,10 @@ export class GenerateMediaActivity {
                 verb: 'UPLOADED',
                 actorId: group.authorObjId,
                 timeWindow: group.date,
-                firstEventAt: group.earliestTimestamp,
+                firstEventAt: createdAt,
               },
               $set: {
-                lastEventAt: group.earliestTimestamp,
+                lastEventAt: createdAt,
                 actorName,
                 visibleToRoles: VISIBLE_TO_ROLES,
                 visibleToUserIds: [],
@@ -130,7 +141,7 @@ export class GenerateMediaActivity {
         const mediaDocs = await db
           .collection('media')
           .find(filter)
-          .project<{ _id: ObjectId; album: ObjectId; author: ObjectId; uploadAt: number }>({
+          .project<{ _id: ObjectId; album: any; author: any; uploadAt: number }>({
             _id: 1,
             album: 1,
             author: 1,
@@ -143,9 +154,11 @@ export class GenerateMediaActivity {
         if (mediaDocs.length === 0) break;
 
         for (const media of mediaDocs) {
-          const albumId = media.album.toHexString();
-          const authorId = media.author.toHexString();
-          const uploadAt = media.uploadAt || media._id.getTimestamp().getTime();
+          const albumId = toHex(media.album);
+          const authorId = toHex(media.author);
+          const albumObjId = toObjectId(media.album);
+          const authorObjId = toObjectId(media.author);
+          const uploadAt = Number(media.uploadAt) || media._id.getTimestamp().getTime();
           const date = new Date(uploadAt).toISOString().substring(0, 10);
 
           if (lastDate !== null && date !== lastDate) {
@@ -168,9 +181,9 @@ export class GenerateMediaActivity {
           if (!group) {
             group = {
               albumId,
-              albumObjId: media.album,
+              albumObjId,
               authorId,
-              authorObjId: media.author,
+              authorObjId,
               date,
               mediaIds: [],
               earliestTimestamp: uploadAt,

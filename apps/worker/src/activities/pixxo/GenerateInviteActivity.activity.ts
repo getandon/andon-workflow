@@ -11,6 +11,18 @@ const DEFAULT_ROLE_BATCH_SIZE = 100;
 const INVITED_VISIBLE_ROLES = ['OWNER', 'MANAGER'];
 const ACCEPTED_VISIBLE_ROLES = ['OWNER', 'MANAGER'];
 
+function toHex(v: any): string {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  if (v.toHexString) return v.toHexString();
+  return String(v);
+}
+
+function toObjectId(v: any): ObjectId {
+  if (v instanceof ObjectId) return v;
+  return new ObjectId(toHex(v));
+}
+
 @Injectable()
 export class GenerateInviteActivity {
   async generateInviteActivity(
@@ -42,14 +54,14 @@ export class GenerateInviteActivity {
           : null;
 
         while (true) {
-          const filter: any = lastInviteId
-            ? { _id: { $gt: lastInviteId }, removed: false }
-            : { removed: false };
+const filter: any = lastInviteId
+              ? { _id: { $gt: lastInviteId } }
+              : {};
 
           const invites = await db
             .collection('album_invite')
             .find(filter)
-            .project<{ _id: ObjectId; album: ObjectId; author: ObjectId; inviteKey: string; createdAt: number }>({
+            .project<{ _id: ObjectId; album: any; author: any; inviteKey: string; createdAt: number }>({
               _id: 1,
               album: 1,
               author: 1,
@@ -62,7 +74,7 @@ export class GenerateInviteActivity {
 
           if (invites.length === 0) break;
 
-          const authorIds = [...new Set(invites.map(i => i.author.toHexString()))];
+          const authorIds = [...new Set(invites.map(i => toHex(i.author)))];
           const users = authorIds.length > 0
             ? await db
               .collection('user')
@@ -77,24 +89,26 @@ export class GenerateInviteActivity {
           }
 
           for (const invite of invites) {
-            const actorId = invite.author.toHexString();
-            const user = userMap.get(actorId);
+            const authorObjId = toObjectId(invite.author);
+            const albumObjId = toObjectId(invite.album);
+            const actorHex = toHex(invite.author);
+            const user = userMap.get(actorHex);
             const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
             const eventId = `Backfill_AlbumInvitesCreated_${invite._id.toHexString()}`;
-            const createdAt = invite.createdAt || invite._id.getTimestamp().getTime();
+            const createdAt = Number(invite.createdAt) || invite._id.getTimestamp().getTime();
 
             try {
               const eventObjId = new ObjectId();
               await db.collection('activity_event').insertOne({
                 _id: eventObjId,
                 eventId,
-                albumId: invite.album,
-                actorId: invite.author,
+                albumId: albumObjId,
+                actorId: authorObjId,
                 actorName,
                 verb: 'INVITED',
                 targetType: 'INVITE',
-                targetId: invite.album,
+                targetId: albumObjId,
                 metadata: { inviteCount: 1, invitees: [invite.inviteKey] },
                 visibleToRoles: INVITED_VISIBLE_ROLES,
                 visibleToUserIds: [],
@@ -105,17 +119,17 @@ export class GenerateInviteActivity {
               const isoTs = new Date(createdAt).toISOString().substring(0, 23);
               await db.collection('activity_summary').updateOne(
                 {
-                  albumId: invite.album,
+                  albumId: albumObjId,
                   verb: 'INVITED',
-                  actorId: invite.author,
+                  actorId: authorObjId,
                   timeWindow: isoTs,
                 },
                 {
                   $setOnInsert: {
                     _id: new ObjectId(),
-                    albumId: invite.album,
+                    albumId: albumObjId,
                     verb: 'INVITED',
-                    actorId: invite.author,
+                    actorId: authorObjId,
                     timeWindow: isoTs,
                     firstEventAt: createdAt,
                     metadata: { inviteCount: 1, invitees: [invite.inviteKey] },
@@ -173,7 +187,7 @@ export class GenerateInviteActivity {
           const roles = await db
             .collection('album_role')
             .find(filter)
-            .project<{ _id: ObjectId; album: ObjectId; user: ObjectId; userRole: string; createdAt: number }>({
+            .project<{ _id: ObjectId; album: any; user: any; userRole: string; createdAt: number }>({
               _id: 1,
               album: 1,
               user: 1,
@@ -186,19 +200,19 @@ export class GenerateInviteActivity {
 
           if (roles.length === 0) break;
 
-          const albumIds = [...new Set(roles.map(r => r.album.toHexString()))];
-          const memberUserIds = [...new Set(roles.map(r => r.user.toHexString()))];
+          const albumIds = [...new Set(roles.map(r => toHex(r.album)))];
+          const memberUserIds = [...new Set(roles.map(r => toHex(r.user)))];
 
           const albums = await db
             .collection('album')
             .find({ _id: { $in: albumIds.map(id => new ObjectId(id)) } })
-            .project<{ _id: ObjectId; author?: ObjectId }>({ _id: 1, author: 1 })
+            .project<{ _id: ObjectId; author?: any }>({ _id: 1, author: 1 })
             .toArray();
 
           const albumAuthorMap = new Map<string, string>();
           for (const a of albums) {
             if (a.author) {
-              albumAuthorMap.set(a._id.toHexString(), a.author.toHexString());
+              albumAuthorMap.set(a._id.toHexString(), toHex(a.author));
             }
           }
 
@@ -208,14 +222,16 @@ export class GenerateInviteActivity {
             .project<{ _id: ObjectId; name?: string; email: string }>({ _id: 1, name: 1, email: 1 })
             .toArray();
 
-          const userMap = new Map<string, { name?: string; email: string }>();
+          const userMap = new Map<string, { name?: string; email?: string }>();
           for (const u of users) {
             userMap.set(u._id.toHexString(), { name: u.name, email: u.email });
           }
 
           for (const role of roles) {
-            const albumId = role.album.toHexString();
-            const userId = role.user.toHexString();
+            const albumObjId = toObjectId(role.album);
+            const userObjId = toObjectId(role.user);
+            const albumId = toHex(role.album);
+            const userId = toHex(role.user);
             const albumAuthor = albumAuthorMap.get(albumId);
 
             if (userId === albumAuthor) {
@@ -224,39 +240,23 @@ export class GenerateInviteActivity {
             }
 
             const user = userMap.get(userId);
-            if (!user) {
-              rolesProcessed++;
-              continue;
-            }
+            const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
-            const invite = await db.collection('album_invite').findOne({
-              album: role.album,
-              inviteKey: user.email.toLowerCase().trim(),
-              removed: false,
-            });
+            const createdAt = Number(role.createdAt) || role._id.getTimestamp().getTime();
 
-            if (!invite) {
-              // No matching invite found — still create the ACCEPTED event
-              // using the album_role's own timestamp as fallback
-            }
-
-            const actorName = user.name || (user.email ? user.email.split('@')[0] : 'Unknown');
             const eventId = `Backfill_AlbumInviteAccepted_${albumId}_${userId}`;
-            const createdAt = invite
-              ? (invite.createdAt || (invite._id as ObjectId).getTimestamp().getTime())
-              : (role.createdAt || role._id.getTimestamp().getTime());
 
             try {
               const eventObjId = new ObjectId();
               await db.collection('activity_event').insertOne({
                 _id: eventObjId,
                 eventId,
-                albumId: role.album,
-                actorId: role.user,
+                albumId: albumObjId,
+                actorId: userObjId,
                 actorName,
                 verb: 'ACCEPTED',
                 targetType: 'INVITE',
-                targetId: role.album,
+                targetId: albumObjId,
                 metadata: {},
                 visibleToRoles: ACCEPTED_VISIBLE_ROLES,
                 visibleToUserIds: [],
@@ -267,17 +267,17 @@ export class GenerateInviteActivity {
               const isoTs = new Date(createdAt).toISOString().substring(0, 23);
               await db.collection('activity_summary').updateOne(
                 {
-                  albumId: role.album,
+                  albumId: albumObjId,
                   verb: 'ACCEPTED',
-                  actorId: role.user,
+                  actorId: userObjId,
                   timeWindow: isoTs,
                 },
                 {
                   $setOnInsert: {
                     _id: new ObjectId(),
-                    albumId: role.album,
+                    albumId: albumObjId,
                     verb: 'ACCEPTED',
-                    actorId: role.user,
+                    actorId: userObjId,
                     timeWindow: isoTs,
                     firstEventAt: createdAt,
                     metadata: {},
