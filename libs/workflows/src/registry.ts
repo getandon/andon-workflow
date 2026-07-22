@@ -3,6 +3,7 @@ import { workflowDefinition as PixxoRecalculation } from './pixxo-recalculation.
 import { workflowDefinition as PixxoUpdate } from './pixxo-update.workflow';
 import { workflowDefinition as PixxoUpdateByIdentity } from './pixxo-update-by-identity.workflow';
 import { workflowDefinition as RestoreDatabase } from './restore-database.workflow';
+import { workflowDefinition as AdHoc } from './ad-hoc.workflow';
 
 export const WORKFLOW_REGISTRY = [
   CopyDatabase,
@@ -10,4 +11,5 @@ export const WORKFLOW_REGISTRY = [
   PixxoUpdate,
   PixxoUpdateByIdentity,
   RestoreDatabase,
+  AdHoc,
 ];

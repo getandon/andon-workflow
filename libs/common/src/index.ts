@@ -7,3 +7,4 @@ export * from './api-tls';
 export * from './cert-info';
 export * from './package-types';
 export * from './interfaces';
+export * from './activity-registry';

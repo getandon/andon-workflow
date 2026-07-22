@@ -10,6 +10,7 @@ import {
   apiRequest,
   ApiTlsRequestOptions,
   collectCertInfo,
+  ACTIVITY_REGISTRY,
 } from '@andon-workflow/lib';
 import { BackupActivity } from '../activities/backup.activity';
 import { RestoreActivity } from '../activities/restore.activity';
@@ -125,11 +126,16 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     try {
       const url = `${API_URL}/api/workers/register`;
       const certInfo = collectCertInfo();
+      const activitySchemas = activities
+        .map((name) => ACTIVITY_REGISTRY.find((a) => a.name === name))
+        .filter(Boolean)
+        .map((a) => ({ name: a!.name, label: a!.label, description: a!.description, schema: a!.schema }));
       const body = JSON.stringify({
         name: this.workerName,
         taskQueue,
         environment,
         activities,
+        activitySchemas,
         identity: this.workerName,
         tlsEnabled: certInfo.tlsEnabled,
         temporalTls: certInfo.temporalTls,

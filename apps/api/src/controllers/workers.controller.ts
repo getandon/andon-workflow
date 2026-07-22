@@ -21,6 +21,15 @@ export class WorkersController {
     taskQueue: string;
     environment: string;
     activities: string[];
+    activitySchemas?: Array<{
+      name: string;
+      label: string;
+      description: string;
+      schema: {
+        input: { type: string; properties: Record<string, unknown>; required?: string[] };
+        output: { type: string; properties: Record<string, unknown> };
+      };
+    }>;
     identity?: string;
     tlsEnabled?: boolean;
     temporalTls?: boolean;
@@ -36,6 +45,11 @@ export class WorkersController {
     caSubject?: string | null;
   }) {
     return this.workers.register(body);
+  }
+
+  @Get('activities')
+  listActivities() {
+    return this.workers.findAvailableActivities();
   }
 
   @Post(':name/heartbeat')

@@ -7,6 +7,8 @@ import { useStartJob } from '~/hooks/use-jobs';
 import { useWorkflows } from '~/hooks/use-workflows';
 import { useWorkers } from '~/hooks/use-workers';
 import { DynamicForm } from '~/components/dynamic-form';
+import { AdHocForm } from '~/components/ad-hoc-form';
+import type { SelectedActivity } from '~/components/ad-hoc-form';
 import { validateAgainstSchema, type JsonSchemaObject } from '~/lib/schema';
 import { Card } from '~/components/ui/card';
 import { Label } from '~/components/ui/label';
@@ -28,6 +30,11 @@ export const Route = createFileRoute('/jobs/create')({
   component: CreateJob,
 });
 
+interface AdHocFormValues {
+  activities: SelectedActivity[];
+  shared: Record<string, unknown>;
+}
+
 function CreateJob() {
   const navigate = useNavigate();
   const { data: workflows } = useWorkflows();
@@ -36,12 +43,15 @@ function CreateJob() {
 
   const [selectedType, setSelectedType] = useState('');
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
+  const [adHocValues, setAdHocValues] = useState<AdHocFormValues>({ activities: [], shared: {} });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const selectedWorkflow = useMemo(
     () => workflows?.find((w) => w.type === selectedType),
     [workflows, selectedType],
   );
+
+  const isAdHoc = selectedType === 'AdHocWorkflow';
 
   const taskQueueOptions = useMemo(() => {
     if (!workers) return [];
@@ -68,24 +78,45 @@ function CreateJob() {
       toast.error('Select a workflow type.');
       return;
     }
-    const errors = validateAgainstSchema(
-      selectedWorkflow.inputSchema as JsonSchemaObject,
-      formValues,
-    );
-    setFormErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      toast.error('Fill in the required fields.');
-      return;
+
+    let params: Record<string, unknown>;
+
+    if (isAdHoc) {
+      if (adHocValues.activities.length === 0) {
+        toast.error('Select at least one activity.');
+        return;
+      }
+      params = {
+        activities: adHocValues.activities.map((a) => ({
+          name: a.name,
+          params: a.params,
+          taskQueue: a.taskQueue,
+        })),
+        shared: adHocValues.shared,
+      };
+    } else {
+      const errors = validateAgainstSchema(
+        selectedWorkflow.inputSchema as JsonSchemaObject,
+        formValues,
+      );
+      setFormErrors(errors);
+      if (Object.keys(errors).length > 0) {
+        toast.error('Fill in the required fields.');
+        return;
+      }
+      params = formValues;
     }
+
     try {
       const result = await startJob.mutateAsync({
         workflowType: selectedType,
-        params: formValues,
+        params,
       });
       toast.success('Job queued — awaiting approval');
       navigate({ to: '/jobs/$jobId', params: { jobId: String(result.id) } });
-    } catch {
-      toast.error('Failed to start job');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start job';
+      toast.error(message);
     }
   };
 
@@ -110,6 +141,7 @@ function CreateJob() {
             onValueChange={(v) => {
               setSelectedType(v);
               setFormValues({});
+              setAdHocValues({ activities: [], shared: {} });
               setFormErrors({});
             }}
           >
@@ -131,7 +163,13 @@ function CreateJob() {
           )}
         </div>
 
-        {selectedWorkflow && (
+        {isAdHoc ? (
+          <AdHocForm
+            value={adHocValues}
+            onChange={setAdHocValues}
+            taskQueueOptions={taskQueueOptions}
+          />
+        ) : selectedWorkflow ? (
           <DynamicForm
             schema={selectedWorkflow.inputSchema}
             value={formValues}
@@ -146,9 +184,7 @@ function CreateJob() {
             errors={formErrors}
             overrides={taskQueueOverrides}
           />
-        )}
-
-        {!selectedWorkflow && (
+        ) : (
           <p className="py-4 text-center text-[11px] uppercase tracking-widest text-muted-foreground font-mono">
             Select a workflow type to configure parameters
           </p>

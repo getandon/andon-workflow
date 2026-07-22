@@ -66,6 +66,11 @@ export class JobsService {
     if (!definition) {
       throw new Error(`Unknown workflow type: ${data.workflowType}`);
     }
+
+    if (data.workflowType === 'AdHocWorkflow') {
+      await this.validateAdHocActivities(data.params ?? {});
+    }
+
     const steps = definition.resolveSteps?.(data.params ?? {}) ?? definition.steps;
 
     const paramsStr = JSON.stringify(data.params ?? {});
@@ -110,10 +115,16 @@ export class JobsService {
     if (!definition) throw new Error(`Unknown workflow type: ${job.workflowType}`);
 
     const params = JSON.parse(job.params || '{}');
-    const taskQueue: string | undefined =
+    let taskQueue: string | undefined =
       params.taskQueue ??
       (definition.taskQueueField ? params[definition.taskQueueField] : undefined) ??
       definition.defaultTaskQueue;
+
+    if (!taskQueue && job.workflowType === 'AdHocWorkflow') {
+      const activities = params.activities as Array<{ taskQueue: string }> | undefined;
+      taskQueue = activities?.[0]?.taskQueue;
+    }
+
     if (!taskQueue) {
       throw new Error(
         `No task queue found for workflow "${job.workflowType}": expected "taskQueue"${definition.taskQueueField ? ` or "${definition.taskQueueField}"` : ''} in job params, or a defaultTaskQueue on the workflow definition`,
@@ -343,6 +354,33 @@ export class JobsService {
       where: { jobId, status: { in: ['WAITING_APPROVAL', 'WAITING_INPUT'] } },
       data: { status: 'RUNNING' },
     });
+  }
+
+  private async validateAdHocActivities(params: Record<string, unknown>) {
+    const activities = params.activities as Array<{ name: string; taskQueue: string }> | undefined;
+    if (!activities?.length) {
+      throw new Error('AdHocWorkflow requires at least one activity');
+    }
+
+    const workers = await this.prisma.worker.findMany({
+      where: { status: 'ONLINE' },
+    });
+
+    for (const [i, activity] of activities.entries()) {
+      const hasWorker = workers.some((w) => {
+        const workerActivities: string[] | Array<{ name: string }> = JSON.parse(w.activities);
+        const names = typeof workerActivities[0] === 'string'
+          ? workerActivities as string[]
+          : (workerActivities as Array<{ name: string }>).map((a) => a.name);
+        return names.includes(activity.name) && w.taskQueue === activity.taskQueue;
+      });
+
+      if (!hasWorker) {
+        throw new Error(
+          `Activity "${activity.name}" at position ${i + 1} has no online worker on task queue "${activity.taskQueue}"`,
+        );
+      }
+    }
   }
 
   async getDashboard() {

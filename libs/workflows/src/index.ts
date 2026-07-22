@@ -8,6 +8,8 @@ export { PixxoUpdateByIdentityWorkflow } from './pixxo-update-by-identity.workfl
 export { workflowDefinition as PixxoUpdateByIdentityDefinition } from './pixxo-update-by-identity.workflow';
 export { RestoreDatabaseWorkflow } from './restore-database.workflow';
 export { workflowDefinition as RestoreDatabaseDefinition } from './restore-database.workflow';
+export { AdHocWorkflow } from './ad-hoc.workflow';
+export { workflowDefinition as AdHocDefinition } from './ad-hoc.workflow';
 export { WORKFLOW_REGISTRY } from './registry';
 export {
   requestInput,

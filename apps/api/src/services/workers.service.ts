@@ -3,6 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TemporalService } from '../temporal/temporal.service';
 import { WorkersGateway } from '../gateways/workers.gateway';
 
+export interface ActivitySchemaEntry {
+  name: string;
+  label: string;
+  description: string;
+  schema: {
+    input: { type: string; properties: Record<string, unknown>; required?: string[] };
+    output: { type: string; properties: Record<string, unknown> };
+  };
+}
+
 @Injectable()
 export class WorkersService implements OnModuleInit {
   constructor(
@@ -34,6 +44,7 @@ export class WorkersService implements OnModuleInit {
     taskQueue: string;
     environment: string;
     activities: string[];
+    activitySchemas?: ActivitySchemaEntry[];
     identity?: string;
     tlsEnabled?: boolean;
     temporalTls?: boolean;
@@ -63,13 +74,17 @@ export class WorkersService implements OnModuleInit {
       caSubject: data.caSubject ?? null,
     };
 
+    const activitiesJson = data.activitySchemas
+      ? JSON.stringify(data.activitySchemas)
+      : JSON.stringify(data.activities);
+
     const worker = await this.prisma.worker.upsert({
       where: { name: data.name },
       create: {
         name: data.name,
         taskQueue: data.taskQueue,
         environment: data.environment,
-        activities: JSON.stringify(data.activities),
+        activities: activitiesJson,
         status: 'ONLINE',
         lastHeartbeat: new Date(),
         ...certFields,
@@ -77,7 +92,7 @@ export class WorkersService implements OnModuleInit {
       update: {
         taskQueue: data.taskQueue,
         environment: data.environment,
-        activities: JSON.stringify(data.activities),
+        activities: activitiesJson,
         status: 'ONLINE',
         lastHeartbeat: new Date(),
         ...certFields,
@@ -95,6 +110,49 @@ export class WorkersService implements OnModuleInit {
       throw new NotFoundException(`Unknown worker: ${name} — re-register required`);
     }
     return this.prisma.worker.findUnique({ where: { name } });
+  }
+
+  async findAvailableActivities() {
+    const workers = await this.prisma.worker.findMany({
+      where: { status: 'ONLINE' },
+    });
+
+    const seen = new Map<string, {
+      name: string;
+      label: string;
+      description: string;
+      schema: {
+        input: { type: string; properties: Record<string, unknown>; required?: string[] };
+        output: { type: string; properties: Record<string, unknown> };
+      };
+      taskQueues: string[];
+    }>();
+
+    for (const w of workers) {
+      const parsed: ActivitySchemaEntry[] | string[] = JSON.parse(w.activities);
+      const entries: ActivitySchemaEntry[] = Array.isArray(parsed) && typeof parsed[0] !== 'string'
+        ? parsed as ActivitySchemaEntry[]
+        : [];
+
+      for (const entry of entries) {
+        const existing = seen.get(entry.name);
+        if (existing) {
+          if (!existing.taskQueues.includes(w.taskQueue)) {
+            existing.taskQueues.push(w.taskQueue);
+          }
+        } else {
+          seen.set(entry.name, {
+            name: entry.name,
+            label: entry.label,
+            description: entry.description,
+            schema: entry.schema,
+            taskQueues: [w.taskQueue],
+          });
+        }
+      }
+    }
+
+    return [...seen.values()];
   }
 
   async deleteById(id: number) {
@@ -161,9 +219,17 @@ export class WorkersService implements OnModuleInit {
         lastHeartbeatSec = Math.round((Date.now() - new Date(w.lastHeartbeat).getTime()) / 1000);
       }
 
+      const parsedActivities: ActivitySchemaEntry[] | string[] = JSON.parse(w.activities);
+      const activityNames = Array.isArray(parsedActivities)
+        ? (typeof parsedActivities[0] === 'string'
+          ? parsedActivities as string[]
+          : (parsedActivities as ActivitySchemaEntry[]).map((a) => a.name))
+        : [];
+
       return {
         ...w,
-        activities: JSON.parse(w.activities),
+        activities: parsedActivities,
+        activityNames,
         certKeyUsage: w.certKeyUsage ? w.certKeyUsage.split(', ') : null,
         status,
         lastHeartbeatSec,
