@@ -39,8 +39,9 @@ export class GenerateOrderActivity {
 
         for (const order of orders) {
           const orderId = order._id.toHexString();
-          const actorHex = toHex(order.user);
-          let userObjId = toObjectId(order.user);
+          const userRef = order.user && order.user._id ? order.user._id : order.user;
+          const actorHex = toHex(userRef);
+          let userObjId = toObjectId(userRef);
           if (!userObjId) {
             jobLog.warn(`Order ${orderId} has no user or invalid user reference, using placeholder actor`);
             userObjId = new ObjectId('000000000000000000000000');

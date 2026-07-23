@@ -29,7 +29,29 @@ export class GenerateInviteActivity {
             const authorIds = [...new Set(invites.map((i: any) => toHex(i.author)).filter((h: string) => h && h.length === 24))];
             const userMap = await fetchUserMap(db, authorIds);
 
+            const albumObjIds = [...new Set(invites
+                .map((i: any) => toObjectId(i.album))
+                .filter(Boolean))];
+            const publicInviteLinkIds = new Set<string>();
+            if (albumObjIds.length > 0) {
+                const albumDocs = await db
+                    .collection('album')
+                    .find({ _id: { $in: albumObjIds } })
+                    .project({ _id: 1, publicInviteLinkId: 1 })
+                    .toArray();
+                for (const a of albumDocs) {
+                    if (a.publicInviteLinkId) {
+                        publicInviteLinkIds.add(a.publicInviteLinkId.toHexString());
+                    }
+                }
+            }
+
             for (const invite of invites) {
+                const inviteHexId = invite._id.toHexString();
+                if (publicInviteLinkIds.has(inviteHexId)) {
+                    invitesProcessed++;
+                    continue;
+                }
                 let authorObjId = toObjectId(invite.author);
                 let albumObjId = toObjectId(invite.album);
                 if (!authorObjId) authorObjId = new ObjectId('000000000000000000000000');

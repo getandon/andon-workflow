@@ -118,7 +118,7 @@ describe('GenerateInviteActivity', () => {
     setupActivityEvent();
     setupBackfillProgress();
     setupCollection('album_role', makeCursor([]));
-    setupCollection('album', makeCursor([]));
+    setupCollection('album', makeCursor([{ _id: albumId, publicInviteLinkId: null }]));
 
     const result = await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
 
@@ -129,6 +129,31 @@ describe('GenerateInviteActivity', () => {
     expect(firstInsert.verb).toBe('INVITED');
     expect(firstInsert.metadata.invitees).toEqual(['guest@example.com']);
     expect(mockCollectionFns['backfill_progress'].insertMany).toHaveBeenCalled();
+  });
+
+  it('should skip public invite link invites', async () => {
+    const authorId = new ObjectId();
+    const albumId = new ObjectId();
+    const publicInviteId = new ObjectId();
+    const realInviteId = new ObjectId();
+    const invites = [
+      { _id: publicInviteId, album: albumId, author: authorId, inviteKey: null, createdAt: 1700000000000 },
+      { _id: realInviteId, album: albumId, author: authorId, inviteKey: 'friend@example.com', createdAt: 1700000000001 },
+    ];
+
+    setupCollection('album_invite', makeCursor(invites));
+    setupCollection('user', makeCursor([{ _id: authorId, name: 'Inviter', email: 'inviter@example.com' }]));
+    setupActivityEvent();
+    setupBackfillProgress();
+    setupCollection('album_role', makeCursor([]));
+    setupCollection('album', makeCursor([{ _id: albumId, publicInviteLinkId: publicInviteId }]));
+
+    const result = await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
+
+    expect(result.invitedCreated).toBe(1);
+    expect(result.invitesProcessed).toBe(2);
+    const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
+    expect(insertCall.metadata.invitees).toEqual(['friend@example.com']);
   });
 
   it('should use album_role as truth and create ACCEPTED for all non-author members', async () => {

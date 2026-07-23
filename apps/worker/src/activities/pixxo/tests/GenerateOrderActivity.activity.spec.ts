@@ -199,6 +199,19 @@ describe('GenerateOrderActivity', () => {
     expect(insertCall.actorId.toHexString()).toBe('000000000000000000000000');
   });
 
+  it('should handle nested user references {_id: ObjectId}', async () => {
+    const userId = new ObjectId();
+    const orderId = new ObjectId();
+    setupOrderDocs([
+      { _id: orderId, user: { _id: userId }, createdAt: 1700000000000 },
+    ]);
+
+    const result = await generateOrderActivity.generateOrderActivity({ database: 'test-db' });
+    expect(result.eventsCreated).toBe(1);
+    const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
+    expect(insertCall.actorId.toHexString()).toBe(userId.toHexString());
+  });
+
   it('should be idempotent on duplicate eventId', async () => {
     const userId = new ObjectId();
     setupOrderDocs([
