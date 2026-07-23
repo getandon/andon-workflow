@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv, toHex, toObjectId } from '@andon-workflow/lib';
+import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -30,10 +30,10 @@ export class GenerateAlbumActivity {
 
       while (true) {
         const filter = lastId ? { _id: { $gt: lastId } } : {};
-        const albums = await db
+        const albums: any[] = await db
           .collection('album')
           .find(filter)
-          .project<{ _id: ObjectId; author?: any; name: string; type: string; date: number; createdAt: number }>({
+          .project({
             _id: 1,
             author: 1,
             name: 1,
@@ -47,53 +47,58 @@ export class GenerateAlbumActivity {
 
         if (albums.length === 0) break;
 
-        const authorIds = [...new Set(albums.filter(a => a.author).map(a => toHex(a.author)).filter(h => h && h.length === 24))];
-        const users = authorIds.length > 0
-          ? await db
-            .collection('user')
-            .find({ _id: { $in: authorIds.map(id => new ObjectId(id)) } })
-            .project<{ _id: ObjectId; name?: string; email: string }>({ _id: 1, name: 1, email: 1 })
-            .toArray()
-          : [];
+        const authorIds = albums
+          .filter(a => a.author)
+          .map(a => toHex(a.author))
+          .filter(h => h && h.length === 24);
 
-        const userMap = new Map<string, { name?: string; email: string }>();
-        for (const u of users) {
-          userMap.set(u._id.toHexString(), { name: u.name, email: u.email });
+        const albumsWithoutAuthor = albums.filter(a => !a.author);
+        const albumObjIds = albumsWithoutAuthor.map(a => a._id);
+
+        let ownerRoles: any[] = [];
+        const albumToOwner = new Map<string, ObjectId>();
+
+        if (albumObjIds.length > 0) {
+          ownerRoles = await db
+            .collection('album_role')
+            .find({ album: { $in: albumObjIds }, userRole: 'OWNER' })
+            .project({ _id: 1, album: 1, user: 1 })
+            .toArray();
+
+          for (const role of ownerRoles) {
+            if (role.user) {
+              albumToOwner.set(role.album.toHexString(), role.user);
+            }
+          }
         }
+
+        const ownerUserIds = ownerRoles
+          .map(r => toHex(r.user))
+          .filter(h => h && h.length === 24);
+
+        const allUserIds = [...authorIds, ...ownerUserIds];
+        const userMap = await fetchUserMap(db, allUserIds);
 
         for (const album of albums) {
           const albumId = album._id.toHexString();
-          let actorObjId = toObjectId(album.author);
+          let actorObjId: ObjectId;
           let actorId = toHex(album.author);
 
-          if (!actorObjId) {
-            const ownerRole = await db.collection('album_role').findOne(
-              { album: album._id, userRole: 'OWNER' },
-              { projection: { user: 1 } },
-            );
-            if (ownerRole?.user) {
-              actorObjId = toObjectId(ownerRole.user);
-              actorId = toHex(ownerRole.user);
-              if (!actorObjId) actorObjId = new ObjectId('000000000000000000000000');
+          if (album.author) {
+            actorObjId = toObjectId(album.author) ?? new ObjectId('000000000000000000000000');
+          } else {
+            const ownerUserId = albumToOwner.get(albumId);
+            if (ownerUserId) {
+              actorObjId = toObjectId(ownerUserId) ?? new ObjectId('000000000000000000000000');
+              actorId = toHex(ownerUserId);
+            } else {
+              jobLog.warn(`Album ${albumId} has no author and no OWNER in album_role, using placeholder actor`);
+              actorObjId = new ObjectId('000000000000000000000000');
+              actorId = '';
             }
           }
 
-          if (!actorObjId) {
-            jobLog.warn(`Album ${albumId} has no author and no OWNER in album_role, using placeholder actor`);
-            actorObjId = new ObjectId('000000000000000000000000');
-            actorId = '';
-          }
-
-          let user = actorId ? userMap.get(actorId) : undefined;
-          if (!user && actorId) {
-            const ownerUser = await db
-              .collection('user')
-              .findOne({ _id: new ObjectId(actorId) }, { projection: { name: 1, email: 1 } });
-            if (ownerUser) {
-              user = { name: ownerUser.name, email: ownerUser.email };
-              userMap.set(actorId, user);
-            }
-          }
+          const user = actorId ? userMap.get(actorId) : undefined;
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_AlbumCreated_${albumId}`;
@@ -101,7 +106,7 @@ export class GenerateAlbumActivity {
 
           try {
             const eventObjId = new ObjectId();
-            await db.collection('activity_event').insertOne({
+            await insertActivityEvent(db, {
               _id: eventObjId,
               eventId,
               albumId: album._id,
@@ -117,8 +122,11 @@ export class GenerateAlbumActivity {
               createdAt,
             });
 
+            eventsCreated++;
+
             const isoDate = new Date(createdAt).toISOString().substring(0, 10);
-            await db.collection('activity_summary').updateOne(
+            await upsertActivitySummary(
+              db,
               {
                 albumId: album._id,
                 verb: 'CREATED',
@@ -144,10 +152,9 @@ export class GenerateAlbumActivity {
                 $addToSet: { eventIds: eventObjId },
                 $inc: { count: 1 },
               },
-              { upsert: true },
+              eventId,
+              jobLog,
             );
-
-            eventsCreated++;
           } catch (err: any) {
             if (err.code === 11000) {
               continue;
@@ -167,7 +174,7 @@ export class GenerateAlbumActivity {
 
         Context.current().heartbeat({
           batch,
-          lastId: lastId.toHexString(),
+          lastId: lastId!.toHexString(),
           totalAlbums,
           eventsCreated,
         });

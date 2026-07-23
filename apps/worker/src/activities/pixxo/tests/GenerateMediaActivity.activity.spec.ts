@@ -20,6 +20,13 @@ jest.mock('@andon-workflow/lib', () => {
   return { ...actual, requiredEnv: jest.fn().mockReturnValue('mongodb://localhost:27017') };
 });
 
+function makeUserFindResult(users: any[]) {
+  return {
+    project: jest.fn().mockReturnThis(),
+    toArray: jest.fn().mockResolvedValue(users),
+  };
+}
+
 describe('GenerateMediaActivity', () => {
   let mockCollectionFns: Record<string, any>;
   let generateMediaActivity: any;
@@ -77,7 +84,7 @@ describe('GenerateMediaActivity', () => {
       find: jest.fn(() => cursor),
     };
     mockCollectionFns['user'] = {
-      findOne: jest.fn().mockResolvedValue({ name: 'Uploader', email: 'up@example.com' }),
+      find: jest.fn(() => makeUserFindResult([{ _id: new ObjectId(docs[0]?.author || '507f1f77bcf86cd799439011'), name: 'Uploader', email: 'up@example.com' }])),
     };
     mockCollectionFns['activity_event'] = {
       insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
@@ -138,7 +145,7 @@ describe('GenerateMediaActivity', () => {
     ];
     setupMediaDocs(docs);
 
-    const result = await generateMediaActivity.generateMediaActivity({ database: 'test-db' });
+    await generateMediaActivity.generateMediaActivity({ database: 'test-db' });
 
     const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
     expect(insertCall.createdAt).toBe(expectedTs);
@@ -154,7 +161,7 @@ describe('GenerateMediaActivity', () => {
     ];
     setupMediaDocs(docs);
 
-    const result = await generateMediaActivity.generateMediaActivity({ database: 'test-db' });
+    await generateMediaActivity.generateMediaActivity({ database: 'test-db' });
 
     const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
     expect(insertCall.createdAt).toBe(expectedTs);

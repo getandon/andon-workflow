@@ -97,6 +97,12 @@ describe('GenerateAlbumActivity', () => {
     mockCollectionFns['user'] = {
       find: jest.fn(() => userCursor),
     };
+    mockCollectionFns['album_role'] = {
+      find: jest.fn(() => ({
+        project: jest.fn().mockReturnThis(),
+        toArray: jest.fn().mockResolvedValue([]),
+      })),
+    };
     mockCollectionFns['activity_event'] = {
       insertOne: jest.fn().mockImplementation(async (doc: any) => {
         if (mockCollectionFns['activity_event']._existing?.has(doc.eventId)) {
@@ -142,14 +148,20 @@ describe('GenerateAlbumActivity', () => {
     ];
     setupAlbumDocs(albums);
 
-    const ownerRole = { user: ownerId };
-    const ownerUser = { _id: ownerId, name: 'Owner From Role', email: 'owner@example.com' };
-    mockCollectionFns['album_role'] = {
-      findOne: jest.fn().mockResolvedValue(ownerRole),
+    const userCursor = {
+      project: jest.fn().mockReturnThis(),
+      toArray: jest.fn().mockResolvedValue([
+        { _id: ownerId, name: 'Owner From Role', email: 'owner@example.com' },
+      ]),
     };
     mockCollectionFns['user'] = {
-      find: jest.fn(() => { throw new Error('should not be called'); }),
-      findOne: jest.fn().mockResolvedValue(ownerUser),
+      find: jest.fn(() => userCursor),
+    };
+    mockCollectionFns['album_role'] = {
+      find: jest.fn(() => ({
+        project: jest.fn().mockReturnThis(),
+        toArray: jest.fn().mockResolvedValue([{ album: albumId, user: ownerId }]),
+      })),
     };
 
     const result = await generateAlbumActivity.generateAlbumActivity({ database: 'test-db' });
@@ -217,7 +229,6 @@ describe('GenerateAlbumActivity', () => {
     expect(result1.eventsCreated).toBe(1);
 
     jest.resetModules();
-    const callCount2 = 0;
     setupAlbumDocs(albums);
     mockCollectionFns['activity_event']._existing = new Set([`Backfill_AlbumCreated_${albumId.toHexString()}`]);
 

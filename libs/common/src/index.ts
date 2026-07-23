@@ -9,3 +9,4 @@ export * from './package-types';
 export * from './interfaces';
 export * from './activity-registry';
 export * from './id-helpers';
+export * from './helpers';

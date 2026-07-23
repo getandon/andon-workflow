@@ -1,7 +1,7 @@
 import {Injectable} from '@nestjs/common';
 import {Context} from '@temporalio/activity';
 import {MongoClient, ObjectId} from 'mongodb';
-import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv, toHex, toObjectId} from '@andon-workflow/lib';
+import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary} from '@andon-workflow/lib';
 import {jobLog} from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -29,7 +29,7 @@ export class GenerateInviteActivity {
                 ? {_id: {$gt: lastInviteId}}
                 : {};
 
-            const invites = await db
+            const invites: any[] = await db
                 .collection('album_invite')
                 .find(filter)
                 .project({
@@ -46,18 +46,7 @@ export class GenerateInviteActivity {
             if (invites.length === 0) break;
 
             const authorIds = [...new Set(invites.map((i: any) => toHex(i.author)).filter((h: string) => h && h.length === 24))];
-            const users = authorIds.length > 0
-                ? await db
-                    .collection('user')
-                    .find({_id: {$in: authorIds.map((id: string) => new ObjectId(id))}})
-                    .project({_id: 1, name: 1, email: 1})
-                    .toArray()
-                : [];
-
-            const userMap = new Map<string, { name?: string; email: string }>();
-            for (const u of users) {
-                userMap.set(u._id.toHexString(), {name: u.name, email: u.email});
-            }
+            const userMap = await fetchUserMap(db, authorIds);
 
             for (const invite of invites) {
                 let authorObjId = toObjectId(invite.author);
@@ -73,7 +62,7 @@ export class GenerateInviteActivity {
 
                 try {
                     const eventObjId = new ObjectId();
-                    await db.collection('activity_event').insertOne({
+                    await insertActivityEvent(db, {
                         _id: eventObjId,
                         eventId,
                         albumId: albumObjId,
@@ -89,8 +78,11 @@ export class GenerateInviteActivity {
                         createdAt,
                     });
 
+                    invitedCreated++;
+
                     const isoTs = new Date(createdAt).toISOString().substring(0, 23);
-                    await db.collection('activity_summary').updateOne(
+                    await upsertActivitySummary(
+                        db,
                         {
                             albumId: albumObjId,
                             verb: 'INVITED',
@@ -116,10 +108,9 @@ export class GenerateInviteActivity {
                             $addToSet: {eventIds: eventObjId},
                             $inc: {count: 1},
                         },
-                        {upsert: true},
+                        eventId,
+                        jobLog,
                     );
-
-                    invitedCreated++;
                 } catch (err: any) {
                     if (err.code === 11000) {
                         continue;
@@ -158,9 +149,9 @@ export class GenerateInviteActivity {
         let batch = 0;
 
         while (true) {
-            const filter: any = lastRoleId ? {_id: {$gt: lastRoleId, role: {$ne: 'OWNER'}}} : {};
+            const filter: any = lastRoleId ? { _id: { $gt: lastRoleId }, role: { $ne: 'OWNER' } } : {};
 
-            const roles = await db
+            const roles: any[] = await db
                 .collection('album_role')
                 .find(filter)
                 .project({
@@ -192,16 +183,7 @@ export class GenerateInviteActivity {
                 }
             }
 
-            const users = await db
-                .collection('user')
-                .find({_id: {$in: memberUserIds.map((id: string) => new ObjectId(id))}})
-                .project({_id: 1, name: 1, email: 1})
-                .toArray();
-
-            const userMap = new Map<string, { name?: string; email?: string }>();
-            for (const u of users) {
-                userMap.set(u._id.toHexString(), {name: u.name, email: u.email});
-            }
+            const userMap = await fetchUserMap(db, memberUserIds);
 
             for (const role of roles) {
                 let albumObjId = toObjectId(role.album);
@@ -225,7 +207,7 @@ export class GenerateInviteActivity {
 
                 try {
                     const eventObjId = new ObjectId();
-                    await db.collection('activity_event').insertOne({
+                    await insertActivityEvent(db, {
                         _id: eventObjId,
                         eventId,
                         albumId: albumObjId,
@@ -241,8 +223,11 @@ export class GenerateInviteActivity {
                         createdAt,
                     });
 
+                    acceptedCreated++;
+
                     const isoTs = new Date(createdAt).toISOString().substring(0, 23);
-                    await db.collection('activity_summary').updateOne(
+                    await upsertActivitySummary(
+                        db,
                         {
                             albumId: albumObjId,
                             verb: 'ACCEPTED',
@@ -268,10 +253,9 @@ export class GenerateInviteActivity {
                             $addToSet: {eventIds: eventObjId},
                             $inc: {count: 1},
                         },
-                        {upsert: true},
+                        eventId,
+                        jobLog,
                     );
-
-                    acceptedCreated++;
                 } catch (err: any) {
                     if (err.code === 11000) {
                         continue;

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv, toHex, toObjectId } from '@andon-workflow/lib';
+import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -28,10 +28,10 @@ export class GenerateOrderActivity {
 
       while (true) {
         const filter: any = lastId ? { _id: { $gt: lastId } } : {};
-        const orders = await db
+        const orders: any[] = await db
           .collection('order')
           .find(filter)
-          .project<{ _id: ObjectId; user?: any; createdAt: number }>({
+          .project({
             _id: 1,
             user: 1,
             createdAt: 1,
@@ -42,19 +42,12 @@ export class GenerateOrderActivity {
 
         if (orders.length === 0) break;
 
-        const userIds = [...new Set(orders.filter(o => o.user).map(o => toHex(o.user)).filter(h => h && h.length === 24))];
-        const users = userIds.length > 0
-          ? await db
-            .collection('user')
-            .find({ _id: { $in: userIds.map(id => new ObjectId(id)) } })
-            .project<{ _id: ObjectId; name?: string; email: string }>({ _id: 1, name: 1, email: 1 })
-            .toArray()
-          : [];
+        const userIds = orders
+          .filter(o => o.user)
+          .map(o => toHex(o.user))
+          .filter(h => h && h.length === 24);
 
-        const userMap = new Map<string, { name?: string; email: string }>();
-        for (const u of users) {
-          userMap.set(u._id.toHexString(), { name: u.name, email: u.email });
-        }
+        const userMap = await fetchUserMap(db, userIds);
 
         for (const order of orders) {
           const orderId = order._id.toHexString();
@@ -73,7 +66,7 @@ export class GenerateOrderActivity {
 
           try {
             const eventObjId = new ObjectId();
-            await db.collection('activity_event').insertOne({
+            await insertActivityEvent(db, {
               _id: eventObjId,
               eventId,
               userId: userObjId,
@@ -89,8 +82,11 @@ export class GenerateOrderActivity {
               createdAt,
             });
 
+            eventsCreated++;
+
             const isoTs = new Date(createdAt).toISOString().substring(0, 23);
-            await db.collection('activity_summary').updateOne(
+            await upsertActivitySummary(
+              db,
               {
                 userId: userObjId,
                 verb: 'PURCHASED',
@@ -116,10 +112,9 @@ export class GenerateOrderActivity {
                 $addToSet: { eventIds: eventObjId },
                 $inc: { count: 1 },
               },
-              { upsert: true },
+              eventId,
+              jobLog,
             );
-
-            eventsCreated++;
           } catch (err: any) {
             if (err.code === 11000) {
               continue;
@@ -139,7 +134,7 @@ export class GenerateOrderActivity {
 
         Context.current().heartbeat({
           batch,
-          lastId: lastId.toHexString(),
+          lastId: lastId!.toHexString(),
           totalOrders,
           eventsCreated,
         });

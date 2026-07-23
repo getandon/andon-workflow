@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateMediaActivityInput, GenerateMediaActivityOutput, requiredEnv, toHex, toObjectId } from '@andon-workflow/lib';
+import { GenerateMediaActivityInput, GenerateMediaActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -40,19 +40,17 @@ export class GenerateMediaActivity {
       const db = client.db(database);
 
       const activeGroups = new Map<string, MediaGroup>();
+      const queuedAuthorIds = new Set<string>();
 
       function groupKey(albumId: string, authorId: string, date: string): string {
         return `${albumId}::${authorId}::${date}`;
       }
 
-      async function flushGroup(group: MediaGroup): Promise<void> {
+      async function flushGroup(group: MediaGroup, userMap: Map<string, { name?: string; email: string }>): Promise<void> {
         const key = groupKey(group.albumId, group.authorId, group.date);
         activeGroups.delete(key);
 
-        const user = await db
-          .collection('user')
-          .findOne({ _id: group.authorObjId }, { projection: { name: 1, email: 1 } });
-
+        const user = userMap.get(group.authorId);
         const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
         const eventId = `Backfill_AlbumMediasUploaded_${group.albumId}_${group.authorId}_${group.date}`;
@@ -60,7 +58,7 @@ export class GenerateMediaActivity {
 
         try {
           const eventObjId = new ObjectId();
-          await db.collection('activity_event').insertOne({
+          await insertActivityEvent(db, {
             _id: eventObjId,
             eventId,
             albumId: group.albumObjId,
@@ -79,7 +77,10 @@ export class GenerateMediaActivity {
             createdAt,
           });
 
-          await db.collection('activity_summary').updateOne(
+          eventsCreated++;
+
+          await upsertActivitySummary(
+            db,
             {
               albumId: group.albumObjId,
               verb: 'UPLOADED',
@@ -110,10 +111,9 @@ export class GenerateMediaActivity {
                 'metadata.photoCount': group.mediaIds.length,
               },
             },
-            { upsert: true },
+            eventId,
+            jobLog,
           );
-
-          eventsCreated++;
         } catch (err: any) {
           if (err.code === 11000) {
             return;
@@ -122,14 +122,23 @@ export class GenerateMediaActivity {
         }
       }
 
+      async function flushGroups(groups: MediaGroup[]): Promise<void> {
+        const allAuthorIds = groups.map(g => g.authorId);
+        const userMap = await fetchUserMap(db, allAuthorIds);
+
+        for (const group of groups) {
+          await flushGroup(group, userMap);
+        }
+      }
+
       let lastDate: string | null = null;
 
       while (true) {
         const filter = lastId ? { _id: { $gt: lastId } } : {};
-        const mediaDocs = await db
+        const mediaDocs: any[] = await db
           .collection('media')
           .find(filter)
-          .project<{ _id: ObjectId; album: any; author: any; uploadAt: number }>({
+          .project({
             _id: 1,
             album: 1,
             author: 1,
@@ -158,10 +167,14 @@ export class GenerateMediaActivity {
                 staleKeys.push(key);
               }
             }
+            const staleGroups: MediaGroup[] = [];
             for (const key of staleKeys) {
               const group = activeGroups.get(key)!;
-              await flushGroup(group);
-              groupsCreated++;
+              staleGroups.push(group);
+            }
+            if (staleGroups.length > 0) {
+              await flushGroups(staleGroups);
+              groupsCreated += staleGroups.length;
             }
           }
           lastDate = date;
@@ -179,6 +192,7 @@ export class GenerateMediaActivity {
               earliestTimestamp: uploadAt,
             };
             activeGroups.set(key, group);
+            queuedAuthorIds.add(authorId);
           }
 
           group.mediaIds.push(media._id.toHexString());
@@ -198,16 +212,17 @@ export class GenerateMediaActivity {
 
         Context.current().heartbeat({
           batch,
-          lastId: lastId.toHexString(),
+          lastId: lastId!.toHexString(),
           totalMedia,
           groupsCreated,
           eventsCreated,
         });
       }
 
-      for (const group of activeGroups.values()) {
-        await flushGroup(group);
-        groupsCreated++;
+      const remainingGroups = [...activeGroups.values()];
+      if (remainingGroups.length > 0) {
+        await flushGroups(remainingGroups);
+        groupsCreated += remainingGroups.length;
       }
 
       jobLog.success(
