@@ -31,11 +31,13 @@ describe('GenerateMediaActivity', () => {
   let mockCollectionFns: Record<string, any>;
   let generateMediaActivity: any;
   let mockClose: jest.Mock;
+  let progressData: any[];
 
   beforeEach(() => {
     jest.resetModules();
     mockCollectionFns = {};
     mockClose = jest.fn().mockResolvedValue(undefined);
+    progressData = [];
 
     const mockDb = {
       collection: jest.fn((name: string) => {
@@ -86,6 +88,13 @@ describe('GenerateMediaActivity', () => {
     mockCollectionFns['user'] = {
       find: jest.fn(() => makeUserFindResult([{ _id: new ObjectId(docs[0]?.author || '507f1f77bcf86cd799439011'), name: 'Uploader', email: 'up@example.com' }])),
     };
+    mockCollectionFns['backfill_progress'] = {
+      find: jest.fn(() => ({
+        project: jest.fn().mockReturnThis(),
+        toArray: jest.fn().mockResolvedValue(progressData),
+      })),
+      insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
+    };
     mockCollectionFns['activity_event'] = {
       insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
     };
@@ -118,6 +127,8 @@ describe('GenerateMediaActivity', () => {
     expect(insertCall.metadata.photoCount).toBe(3);
     expect(insertCall.createdAt).toBe(ts);
     expect(insertCall.actorName).toBe('Uploader');
+
+    expect(mockCollectionFns['backfill_progress'].insertMany).toHaveBeenCalled();
   });
 
   it('should create separate groups for different dates', async () => {

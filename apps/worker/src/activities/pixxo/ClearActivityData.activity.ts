@@ -31,14 +31,18 @@ export class ClearActivityDataActivity {
       const busEventsResult = await db.collection('processed_bus_event').deleteMany({});
       const processedBusEventsDeleted = busEventsResult.deletedCount;
 
+      const progressResult = await db.collection('backfill_progress').deleteMany({});
+      const progressDeleted = progressResult.deletedCount;
+
       Context.current().heartbeat({
         activityEventsDeleted,
         activitySummariesDeleted,
         processedBusEventsDeleted,
+        progressDeleted,
       });
 
       jobLog.success(
-        `Cleared: ${activityEventsDeleted} activity events, ${activitySummariesDeleted} activity summaries, ${processedBusEventsDeleted} processed bus events`,
+        `Cleared: ${activityEventsDeleted} activity events, ${activitySummariesDeleted} activity summaries, ${processedBusEventsDeleted} processed bus events, ${progressDeleted} backfill progress records`,
       );
 
       return {

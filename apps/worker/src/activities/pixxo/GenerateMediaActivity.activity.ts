@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateMediaActivityInput, GenerateMediaActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary } from '@andon-workflow/lib';
+import { GenerateMediaActivityInput, GenerateMediaActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -33,14 +33,12 @@ export class GenerateMediaActivity {
     let groupsCreated = 0;
     let eventsCreated = 0;
     let batch = 0;
-    let lastId: ObjectId | null = input.lastId ? new ObjectId(input.lastId) : null;
 
     try {
       await client.connect();
       const db = client.db(database);
 
       const activeGroups = new Map<string, MediaGroup>();
-      const queuedAuthorIds = new Set<string>();
 
       function groupKey(albumId: string, authorId: string, date: string): string {
         return `${albumId}::${authorId}::${date}`;
@@ -134,19 +132,7 @@ export class GenerateMediaActivity {
       let lastDate: string | null = null;
 
       while (true) {
-        const filter = lastId ? { _id: { $gt: lastId } } : {};
-        const mediaDocs: any[] = await db
-          .collection('media')
-          .find(filter)
-          .project({
-            _id: 1,
-            album: 1,
-            author: 1,
-            uploadAt: 1,
-          })
-          .sort({ _id: 1 })
-          .limit(batchSize)
-          .toArray();
+        const mediaDocs: any[] = await findUnprocessedBatch(db, 'media', batchSize);
 
         if (mediaDocs.length === 0) break;
 
@@ -192,7 +178,6 @@ export class GenerateMediaActivity {
               earliestTimestamp: uploadAt,
             };
             activeGroups.set(key, group);
-            queuedAuthorIds.add(authorId);
           }
 
           group.mediaIds.push(media._id.toHexString());
@@ -203,7 +188,7 @@ export class GenerateMediaActivity {
           totalMedia++;
         }
 
-        lastId = mediaDocs[mediaDocs.length - 1]._id;
+        await markProcessed(db, 'media', mediaDocs.map(m => m._id));
         batch++;
 
         jobLog.info(
@@ -212,8 +197,7 @@ export class GenerateMediaActivity {
 
         Context.current().heartbeat({
           batch,
-          lastId: lastId!.toHexString(),
-          totalMedia,
+          processedCount: totalMedia,
           groupsCreated,
           eventsCreated,
         });

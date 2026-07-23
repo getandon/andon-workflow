@@ -23,10 +23,12 @@ jest.mock('@andon-workflow/lib', () => {
 describe('GenerateOrderActivity', () => {
   let mockCollectionFns: Record<string, any>;
   let generateOrderActivity: any;
+  let progressData: any[];
 
   beforeEach(() => {
     jest.resetModules();
     mockCollectionFns = {};
+    progressData = [];
 
     const mockDb = {
       collection: jest.fn((name: string) => {
@@ -92,6 +94,14 @@ describe('GenerateOrderActivity', () => {
       })),
     };
 
+    mockCollectionFns['backfill_progress'] = {
+      find: jest.fn(() => ({
+        project: jest.fn().mockReturnThis(),
+        toArray: jest.fn().mockResolvedValue(progressData),
+      })),
+      insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
+    };
+
     mockCollectionFns['activity_event'] = {
       insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
     };
@@ -100,7 +110,7 @@ describe('GenerateOrderActivity', () => {
     };
   }
 
-  it('should create PURCHASED events for all orders (including NEW status)', async () => {
+  it('should create PURCHASED events for all orders', async () => {
     const userId = new ObjectId();
     const orderId = new ObjectId();
     const docs = [
@@ -120,6 +130,8 @@ describe('GenerateOrderActivity', () => {
     expect(firstInsert.targetType).toBe('PACKAGE');
     expect(firstInsert.visibleToUserIds).toHaveLength(1);
     expect(firstInsert.actorName).toBe('Buyer');
+
+    expect(mockCollectionFns['backfill_progress'].insertMany).toHaveBeenCalled();
   });
 
   it('should not set albumId (user-scoped event)', async () => {

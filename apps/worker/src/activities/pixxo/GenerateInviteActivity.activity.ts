@@ -1,7 +1,7 @@
 import {Injectable} from '@nestjs/common';
 import {Context} from '@temporalio/activity';
 import {MongoClient, ObjectId} from 'mongodb';
-import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary} from '@andon-workflow/lib';
+import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed} from '@andon-workflow/lib';
 import {jobLog} from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -16,32 +16,13 @@ export class GenerateInviteActivity {
 
     private async processInvited(db: any, input: GenerateInviteActivityInput): Promise<{ invitedCreated: number; invitesProcessed: number }> {
         const inviteBatchSize = input.inviteBatchSize ?? DEFAULT_INVITE_BATCH_SIZE;
-        let lastInviteId: ObjectId | null = input.lastInviteId
-            ? new ObjectId(input.lastInviteId)
-            : null;
 
         let invitedCreated = 0;
         let invitesProcessed = 0;
         let batch = 0;
 
         while (true) {
-            const filter: any = lastInviteId
-                ? {_id: {$gt: lastInviteId}}
-                : {};
-
-            const invites: any[] = await db
-                .collection('album_invite')
-                .find(filter)
-                .project({
-                    _id: 1,
-                    album: 1,
-                    author: 1,
-                    inviteKey: 1,
-                    createdAt: 1,
-                })
-                .sort({_id: 1})
-                .limit(inviteBatchSize)
-                .toArray();
+            const invites: any[] = await findUnprocessedBatch(db, 'album_invite', inviteBatchSize);
 
             if (invites.length === 0) break;
 
@@ -121,7 +102,7 @@ export class GenerateInviteActivity {
                 invitesProcessed++;
             }
 
-            lastInviteId = invites[invites.length - 1]._id;
+            await markProcessed(db, 'album_invite', invites.map(i => i._id));
             batch++;
 
             jobLog.info(
@@ -130,8 +111,8 @@ export class GenerateInviteActivity {
 
             Context.current().heartbeat({
                 batch,
-                lastInviteId: lastInviteId!.toHexString(),
                 invitedCreated,
+                invitesProcessed,
             });
         }
 
@@ -140,30 +121,13 @@ export class GenerateInviteActivity {
 
     private async processAccepted(db: any, input: GenerateInviteActivityInput): Promise<{ acceptedCreated: number; rolesProcessed: number }> {
         const roleBatchSize = input.roleBatchSize ?? DEFAULT_ROLE_BATCH_SIZE;
-        let lastRoleId: ObjectId | null = input.lastRoleId
-            ? new ObjectId(input.lastRoleId)
-            : null;
 
         let acceptedCreated = 0;
         let rolesProcessed = 0;
         let batch = 0;
 
         while (true) {
-            const filter: any = lastRoleId ? { _id: { $gt: lastRoleId }, role: { $ne: 'OWNER' } } : {};
-
-            const roles: any[] = await db
-                .collection('album_role')
-                .find(filter)
-                .project({
-                    _id: 1,
-                    album: 1,
-                    user: 1,
-                    userRole: 1,
-                    createdAt: 1,
-                })
-                .sort({_id: 1})
-                .limit(roleBatchSize)
-                .toArray();
+            const roles: any[] = await findUnprocessedBatch(db, 'album_role', roleBatchSize);
 
             if (roles.length === 0) break;
 
@@ -192,8 +156,13 @@ export class GenerateInviteActivity {
                 if (!userObjId) userObjId = new ObjectId('000000000000000000000000');
                 const albumId = toHex(role.album);
                 const userId = toHex(role.user);
-                const albumAuthor = albumAuthorMap.get(albumId);
 
+                if (role.userRole === 'OWNER') {
+                    rolesProcessed++;
+                    continue;
+                }
+
+                const albumAuthor = albumAuthorMap.get(albumId);
                 if (userId === albumAuthor) {
                     rolesProcessed++;
                     continue;
@@ -266,7 +235,7 @@ export class GenerateInviteActivity {
                 rolesProcessed++;
             }
 
-            lastRoleId = roles[roles.length - 1]._id;
+            await markProcessed(db, 'album_role', roles.map(r => r._id));
             batch++;
 
             jobLog.info(
@@ -275,7 +244,6 @@ export class GenerateInviteActivity {
 
             Context.current().heartbeat({
                 batch,
-                lastRoleId: lastRoleId!.toHexString(),
                 acceptedCreated,
                 rolesProcessed,
             });
@@ -296,7 +264,6 @@ export class GenerateInviteActivity {
         let acceptedCreated = 0;
         let invitesProcessed = 0;
         let rolesProcessed = 0;
-        let batch = 0;
 
         try {
             await client.connect();
@@ -319,7 +286,7 @@ export class GenerateInviteActivity {
                 acceptedCreated,
                 invitesProcessed,
                 rolesProcessed,
-                batches: batch,
+                batches: 0,
                 completed: true,
             };
         } catch (err) {

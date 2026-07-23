@@ -32,12 +32,14 @@ describe('GenerateAlbumActivity', () => {
   let mockClose: jest.Mock;
   let mockCollectionFns: Record<string, any>;
   let generateAlbumActivity: any;
+  let progressData: any[];
 
   beforeEach(() => {
     jest.resetModules();
     mockCollectionFns = {};
     mockConnect = jest.fn().mockResolvedValue(undefined);
     mockClose = jest.fn().mockResolvedValue(undefined);
+    progressData = [];
 
     const mockDb = {
       collection: jest.fn((name: string) => {
@@ -103,6 +105,13 @@ describe('GenerateAlbumActivity', () => {
         toArray: jest.fn().mockResolvedValue([]),
       })),
     };
+    mockCollectionFns['backfill_progress'] = {
+      find: jest.fn(() => ({
+        project: jest.fn().mockReturnThis(),
+        toArray: jest.fn().mockResolvedValue(progressData),
+      })),
+      insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
+    };
     mockCollectionFns['activity_event'] = {
       insertOne: jest.fn().mockImplementation(async (doc: any) => {
         if (mockCollectionFns['activity_event']._existing?.has(doc.eventId)) {
@@ -138,6 +147,8 @@ describe('GenerateAlbumActivity', () => {
     expect(insertCall.eventId).toBe(`Backfill_AlbumCreated_${albumId.toHexString()}`);
     expect(insertCall.createdAt).toBe(1700000000000);
     expect(insertCall.actorName).toBe('Test User');
+
+    expect(mockCollectionFns['backfill_progress'].insertMany).toHaveBeenCalled();
   });
 
   it('should find owner from album_role when album has no author', async () => {
@@ -230,6 +241,7 @@ describe('GenerateAlbumActivity', () => {
 
     jest.resetModules();
     setupAlbumDocs(albums);
+    progressData = [{ sourceCollection: 'album', sourceId: albumId }];
     mockCollectionFns['activity_event']._existing = new Set([`Backfill_AlbumCreated_${albumId.toHexString()}`]);
 
     const result2 = await generateAlbumActivity.generateAlbumActivity({ database: 'test-db' });

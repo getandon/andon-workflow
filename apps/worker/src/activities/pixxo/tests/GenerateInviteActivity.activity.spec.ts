@@ -42,12 +42,16 @@ describe('GenerateInviteActivity', () => {
   let mockClose: jest.Mock;
   let mockCollectionFns: Record<string, any>;
   let generateInviteActivity: any;
+  let inviteProgress: any[];
+  let roleProgress: any[];
 
   beforeEach(() => {
     jest.resetModules();
     mockCollectionFns = {};
     mockConnect = jest.fn().mockResolvedValue(undefined);
     mockClose = jest.fn().mockResolvedValue(undefined);
+    inviteProgress = [];
+    roleProgress = [];
 
     const mockDb = {
       collection: jest.fn((name: string) => {
@@ -79,10 +83,21 @@ describe('GenerateInviteActivity', () => {
     generateInviteActivity = new mod.GenerateInviteActivity();
   });
 
-  function setupCollection(name: string, cursor: any, findOne?: any) {
-    const obj: any = { find: jest.fn(() => cursor) };
-    if (findOne !== undefined) obj.findOne = findOne;
-    mockCollectionFns[name] = obj;
+  function setupCollection(name: string, cursor: any) {
+    mockCollectionFns[name] = { find: jest.fn(() => cursor) };
+  }
+
+  function setupBackfillProgress() {
+    mockCollectionFns['backfill_progress'] = {
+      find: jest.fn((query: any) => {
+        const data = query.sourceCollection === 'album_invite' ? inviteProgress : roleProgress;
+        return {
+          project: jest.fn().mockReturnThis(),
+          toArray: jest.fn().mockResolvedValue(data),
+        };
+      }),
+      insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
+    };
   }
 
   function setupActivityEvent() {
@@ -90,7 +105,7 @@ describe('GenerateInviteActivity', () => {
     mockCollectionFns['activity_summary'] = { updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }) };
   }
 
-  it('should create INVITED events for all invites (including removed)', async () => {
+  it('should create INVITED events for all invites', async () => {
     const authorId = new ObjectId();
     const albumId = new ObjectId();
     const invites = [
@@ -98,10 +113,10 @@ describe('GenerateInviteActivity', () => {
       { _id: new ObjectId(), album: albumId, author: authorId, inviteKey: 'guest2@example.com', createdAt: 1700000000001 },
     ];
 
-    setupCollection('album_invite', makeCursor(invites), jest.fn().mockResolvedValue(null));
+    setupCollection('album_invite', makeCursor(invites));
     setupCollection('user', makeCursor([{ _id: authorId, name: 'Inviter', email: 'inviter@example.com' }]));
     setupActivityEvent();
-    // Empty data for accepted phase
+    setupBackfillProgress();
     setupCollection('album_role', makeCursor([]));
     setupCollection('album', makeCursor([]));
 
@@ -113,6 +128,7 @@ describe('GenerateInviteActivity', () => {
     const firstInsert = mockCollectionFns['activity_event'].insertOne.mock.calls[0][0];
     expect(firstInsert.verb).toBe('INVITED');
     expect(firstInsert.metadata.invitees).toEqual(['guest@example.com']);
+    expect(mockCollectionFns['backfill_progress'].insertMany).toHaveBeenCalled();
   });
 
   it('should use album_role as truth and create ACCEPTED for all non-author members', async () => {
@@ -124,8 +140,9 @@ describe('GenerateInviteActivity', () => {
     setupCollection('album_role', makeCursor(roles));
     setupCollection('album', makeCursor([{ _id: albumId, author: albumAuthor }]));
     setupCollection('user', makeCursor([{ _id: userId, name: 'Member', email: 'member@example.com' }, { _id: albumAuthor, name: 'Owner', email: 'owner@example.com' }]));
-    setupCollection('album_invite', makeCursor([]), jest.fn().mockResolvedValue(null));
+    setupCollection('album_invite', makeCursor([]));
     setupActivityEvent();
+    setupBackfillProgress();
 
     const result = await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
 
@@ -149,8 +166,9 @@ describe('GenerateInviteActivity', () => {
     setupCollection('album_role', makeCursor(roles));
     setupCollection('album', makeCursor([{ _id: albumId, author: albumAuthor }]));
     setupCollection('user', makeCursor([{ _id: albumAuthor, name: 'Owner', email: 'owner@example.com' }]));
-    setupCollection('album_invite', makeCursor([{ _id: new ObjectId(), album: albumId, author: albumAuthor, inviteKey: 'owner@example.com', createdAt: 1700000000000 }]), jest.fn().mockResolvedValue(null));
+    setupCollection('album_invite', makeCursor([{ _id: new ObjectId(), album: albumId, author: albumAuthor, inviteKey: 'owner@example.com', createdAt: 1700000000000 }]));
     setupActivityEvent();
+    setupBackfillProgress();
 
     const result = await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
     expect(result.acceptedCreated).toBe(0);
@@ -167,8 +185,9 @@ describe('GenerateInviteActivity', () => {
     setupCollection('album_role', makeCursor(roles));
     setupCollection('album', makeCursor([{ _id: albumId, author: albumAuthor }]));
     setupCollection('user', makeCursor([{ _id: userId, name: 'Member', email: 'member@example.com' }, { _id: albumAuthor, name: 'Owner', email: 'owner@example.com' }]));
-    setupCollection('album_invite', makeCursor([]), jest.fn().mockResolvedValue(null));
+    setupCollection('album_invite', makeCursor([]));
     setupActivityEvent();
+    setupBackfillProgress();
 
     await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
     const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls.find(
@@ -188,8 +207,9 @@ describe('GenerateInviteActivity', () => {
     setupCollection('album_role', makeCursor(roles));
     setupCollection('album', makeCursor([{ _id: albumId, author: albumAuthor }]));
     setupCollection('user', makeCursor([{ _id: userId, name: 'Member', email: 'member@example.com' }, { _id: albumAuthor, name: 'Owner', email: 'owner@example.com' }]));
-    setupCollection('album_invite', makeCursor([]), jest.fn().mockResolvedValue(null));
+    setupCollection('album_invite', makeCursor([]));
     setupActivityEvent();
+    setupBackfillProgress();
 
     await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
     const insertCall = mockCollectionFns['activity_event'].insertOne.mock.calls.find(
@@ -207,8 +227,9 @@ describe('GenerateInviteActivity', () => {
     setupCollection('album_role', makeCursor(roles));
     setupCollection('album', makeCursor([{ _id: new ObjectId(albumIdStr), author: albumAuthor }]));
     setupCollection('user', makeCursor([{ _id: new ObjectId(userIdStr), name: 'String Member', email: 'str@example.com' }, { _id: albumAuthor, name: 'Owner', email: 'owner@example.com' }]));
-    setupCollection('album_invite', makeCursor([]), jest.fn().mockResolvedValue(null));
+    setupCollection('album_invite', makeCursor([]));
     setupActivityEvent();
+    setupBackfillProgress();
 
     const result = await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
     expect(result.acceptedCreated).toBe(1);

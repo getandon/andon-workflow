@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary } from '@andon-workflow/lib';
+import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -20,25 +20,13 @@ export class GenerateOrderActivity {
     let totalOrders = 0;
     let eventsCreated = 0;
     let batch = 0;
-    let lastId: ObjectId | null = input.lastId ? new ObjectId(input.lastId) : null;
 
     try {
       await client.connect();
       const db = client.db(database);
 
       while (true) {
-        const filter: any = lastId ? { _id: { $gt: lastId } } : {};
-        const orders: any[] = await db
-          .collection('order')
-          .find(filter)
-          .project({
-            _id: 1,
-            user: 1,
-            createdAt: 1,
-          })
-          .sort({ _id: 1 })
-          .limit(batchSize)
-          .toArray();
+        const orders: any[] = await findUnprocessedBatch(db, 'order', batchSize);
 
         if (orders.length === 0) break;
 
@@ -125,7 +113,7 @@ export class GenerateOrderActivity {
           totalOrders++;
         }
 
-        lastId = orders[orders.length - 1]._id;
+        await markProcessed(db, 'order', orders.map(o => o._id));
         batch++;
 
         jobLog.info(
@@ -134,8 +122,7 @@ export class GenerateOrderActivity {
 
         Context.current().heartbeat({
           batch,
-          lastId: lastId!.toHexString(),
-          totalOrders,
+          processedCount: totalOrders,
           eventsCreated,
         });
       }

@@ -70,12 +70,14 @@ describe('ClearActivityDataActivity', () => {
     mockCollectionFns['activity_event'] = { deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }) };
     mockCollectionFns['activity_summary'] = { deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }) };
     mockCollectionFns['processed_bus_event'] = { deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }) };
+    mockCollectionFns['backfill_progress'] = { deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }) };
 
     await clearActivityData.clearActivityData({ database: 'test-db' });
 
     expect(mockCollectionFns['activity_event'].deleteMany).toHaveBeenCalledWith({});
     expect(mockCollectionFns['activity_summary'].deleteMany).toHaveBeenCalledWith({});
     expect(mockCollectionFns['processed_bus_event'].deleteMany).toHaveBeenCalledWith({});
+    expect(mockCollectionFns['backfill_progress'].deleteMany).toHaveBeenCalledWith({});
   });
 
   it('should handle empty collections gracefully', async () => {

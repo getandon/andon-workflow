@@ -61,6 +61,51 @@ export async function insertActivityEvent(
   await db.collection('activity_event').insertOne(event);
 }
 
+export async function markProcessed(
+  db: any,
+  sourceCollection: string,
+  sourceIds: ObjectId[],
+): Promise<void> {
+  if (sourceIds.length === 0) return;
+  try {
+    await db.collection('backfill_progress').insertMany(
+      sourceIds.map(id => ({ sourceCollection, sourceId: id })),
+      { ordered: false },
+    );
+  } catch (err: any) {
+    if (err.code !== 11000) throw err;
+  }
+}
+
+export async function findUnprocessedBatch(
+  db: any,
+  sourceCollection: string,
+  batchSize: number,
+): Promise<any[]> {
+  const processed = await db
+    .collection('backfill_progress')
+    .find({ sourceCollection })
+    .project({ sourceId: 1 })
+    .toArray();
+
+  const processedIds = processed.map((p: any) => p.sourceId);
+
+  if (processedIds.length === 0) {
+    return await db
+      .collection(sourceCollection)
+      .find({})
+      .sort({ _id: 1 })
+      .limit(batchSize)
+      .toArray();
+  }
+
+  return await db
+    .collection(sourceCollection)
+    .find({ _id: { $nin: processedIds } })
+    .limit(batchSize)
+    .toArray();
+}
+
 export async function upsertActivitySummary(
   db: any,
   match: Record<string, unknown>,

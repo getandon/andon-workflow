@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary } from '@andon-workflow/lib';
+import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -22,28 +22,13 @@ export class GenerateAlbumActivity {
     let totalAlbums = 0;
     let eventsCreated = 0;
     let batch = 0;
-    let lastId: ObjectId | null = input.lastId ? new ObjectId(input.lastId) : null;
 
     try {
       await client.connect();
       const db = client.db(database);
 
       while (true) {
-        const filter = lastId ? { _id: { $gt: lastId } } : {};
-        const albums: any[] = await db
-          .collection('album')
-          .find(filter)
-          .project({
-            _id: 1,
-            author: 1,
-            name: 1,
-            type: 1,
-            date: 1,
-            createdAt: 1,
-          })
-          .sort({ _id: 1 })
-          .limit(batchSize)
-          .toArray();
+        const albums: any[] = await findUnprocessedBatch(db, 'album', batchSize);
 
         if (albums.length === 0) break;
 
@@ -165,7 +150,7 @@ export class GenerateAlbumActivity {
           totalAlbums++;
         }
 
-        lastId = albums[albums.length - 1]._id;
+        await markProcessed(db, 'album', albums.map(a => a._id));
         batch++;
 
         jobLog.info(
@@ -174,8 +159,7 @@ export class GenerateAlbumActivity {
 
         Context.current().heartbeat({
           batch,
-          lastId: lastId!.toHexString(),
-          totalAlbums,
+          processedCount: totalAlbums,
           eventsCreated,
         });
       }
