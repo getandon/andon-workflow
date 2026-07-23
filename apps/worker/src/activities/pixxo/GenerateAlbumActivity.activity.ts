@@ -119,15 +119,16 @@ export class GenerateAlbumActivity {
                 timeWindow: isoDate,
               },
               {
-                $setOnInsert: {
-                  _id: new ObjectId(),
-                  verb: 'CREATED',
-                  actorId: actorObjId,
-                  timeWindow: isoDate,
-                  firstEventAt: createdAt,
-                  albumId: album._id,
-                  metadata: { name: album.name, type: album.type, date: Number(album.date) || 0 },
-                },
+                  $setOnInsert: {
+                    _id: new ObjectId(),
+                    verb: 'CREATED',
+                    actorId: actorObjId,
+                    timeWindow: isoDate,
+                    firstEventAt: createdAt,
+                    albumId: album._id,
+                    userId: album._id,
+                    metadata: { name: album.name, type: album.type, date: Number(album.date) || 0 },
+                  },
                 $set: {
                   lastEventAt: createdAt,
                   actorName,

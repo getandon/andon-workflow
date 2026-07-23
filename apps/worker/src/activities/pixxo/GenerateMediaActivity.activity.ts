@@ -89,6 +89,7 @@ export class GenerateMediaActivity {
               $setOnInsert: {
                 _id: new ObjectId(),
                 albumId: group.albumObjId,
+                userId: group.albumObjId,
                 verb: 'UPLOADED',
                 actorId: group.authorObjId,
                 timeWindow: group.date,

@@ -74,6 +74,7 @@ export class GenerateInviteActivity {
                             $setOnInsert: {
                                 _id: new ObjectId(),
                                 albumId: albumObjId,
+                                userId: albumObjId,
                                 verb: 'INVITED',
                                 actorId: authorObjId,
                                 timeWindow: isoTs,
@@ -207,6 +208,7 @@ export class GenerateInviteActivity {
                             $setOnInsert: {
                                 _id: new ObjectId(),
                                 albumId: albumObjId,
+                                userId: albumObjId,
                                 verb: 'ACCEPTED',
                                 actorId: userObjId,
                                 timeWindow: isoTs,
