@@ -42,7 +42,7 @@ services:
       - "./databases/mongo/mongo3_data:/data/db"
       - "./databases/mongo/mongo3_config:/data/configdb"
   worker:
-    image: ghcr.io/getandon/andon-worker:main@sha256:625641e24f50e1afe58775d7cde13794db4d9aaeb2dd5c84773364ad17bc50c8
+    image: ghcr.io/getandon/andon-worker:main@sha256:9da110717d1a88f68dceae756559af1226d057a534d7fa89deb3a34cf682377d
     restart: unless-stopped
     environment:
       - TEMPORAL_ADDRESS=andon-temporal.pix-xo.cloud:443
