@@ -212,6 +212,10 @@ export interface SeedAdminActivityOutput {
   invites: number;
   accepted: number;
   orders: number;
+  ordersTotal: number;
+  ordersCompleted: number;
+  ordersSkippedStatus: number;
+  ordersSkippedCategory: number;
   sells: number;
   baseActivities: number;
   batches: number;

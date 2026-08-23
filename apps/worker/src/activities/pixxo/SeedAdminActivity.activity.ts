@@ -39,6 +39,50 @@ function tsOf(doc: any, field = 'createdAt'): number {
   return t || (doc._id?.getTimestamp?.().getTime() ?? Date.now());
 }
 
+const GB = 1024 * 1024 * 1024;
+
+function resolvePackageName(order: any, packages: any[]): string {
+  if (order?.packageName) return String(order.packageName);
+
+  const items = (order?.items ?? []) as any[];
+  const sizeItem = items.find((i: any) => i.type === 'SIZE');
+  const trafficItem = items.find((i: any) => i.type === 'TRAFFIC');
+  const hasSize = Boolean(sizeItem);
+  const hasTraffic = Boolean(trafficItem);
+  const sizeGB = Math.round((Number(sizeItem?.quantity) || 0) / GB);
+  const trafficGB = Math.round((Number(trafficItem?.quantity) || 0) / GB);
+  const year = Number(items.find((i: any) => i.type === 'YEAR')?.quantity) || 0;
+
+  const matches = (packages ?? []).filter((p: any) => {
+    if (order?.category && p.category && String(p.category) !== String(order.category)) return false;
+    const pi = (p.items ?? []) as any[];
+    const storage = pi.find((x: any) => x.type === 'STORAGE');
+    const traffic = pi.find((x: any) => x.type === 'TRAFFIC');
+    if (hasSize || hasTraffic) {
+      if (hasSize && (!storage || Number(storage.quantity) !== sizeGB)) return false;
+      if (hasTraffic && (!traffic || Number(traffic.quantity) !== trafficGB)) return false;
+    } else {
+      if (storage || traffic) return false;
+    }
+    return true;
+  });
+
+  if (matches.length === 1) {
+    return String(matches[0].name ?? matches[0].id);
+  }
+  if (matches.length > 1) {
+    const exact = matches.find((p: any) => {
+      const dur = ((p.items ?? []) as any[]).find((x: any) => x.type === 'DURATION');
+      return !dur || (year > 0 && Math.abs(Number(dur.quantity) - year) < 0.01);
+    });
+    return String((exact ?? matches[0]).name ?? (exact ?? matches[0]).id);
+  }
+
+  if (order?.packageId) return String(order.packageId);
+  if (order?._id) return (order._id.toHexString?.() ?? String(order._id));
+  return String(order?.id ?? '');
+}
+
 @Injectable()
 export class SeedAdminActivity {
   async seedAdminActivity(input: SeedAdminActivityInput = {}): Promise<SeedAdminActivityOutput> {
@@ -56,6 +100,10 @@ export class SeedAdminActivity {
       invites: 0,
       accepted: 0,
       orders: 0,
+      ordersTotal: 0,
+      ordersCompleted: 0,
+      ordersSkippedStatus: 0,
+      ordersSkippedCategory: 0,
       sells: 0,
       baseActivities: 0,
     };
@@ -65,6 +113,10 @@ export class SeedAdminActivity {
       await client.connect();
       const src = client.db(database);
       const dst = client.db(adminDatabase);
+
+      jobLog.warn(
+        `SeedAdminActivity: source.db="${database}" target.database="${adminDatabase}"`,
+      );
 
       await dst
         .collection('backfill_progress')
@@ -311,15 +363,29 @@ export class SeedAdminActivity {
       }
 
       // ── Phase 6: orders → purchase ─────────────────────────────────────────
+      const packages = await src.collection('packages').find({}).toArray();
+      let sampledStatuses: Array<{ status: string; category: string }> = [];
       while (true) {
         const orders = await findUnprocessed('order');
         if (orders.length === 0) break;
 
         for (const o of orders) {
-          if (o.status !== 'COMPLETED') continue;
+          counts.ordersTotal++;
+          const status = String(o?.status ?? '').toUpperCase();
+          if (status !== 'COMPLETED') {
+            counts.ordersSkippedStatus++;
+            if (sampledStatuses.length < 5) {
+              sampledStatuses.push({ status, category: String(o?.category ?? '') });
+            }
+            continue;
+          }
+          counts.ordersCompleted++;
 
           const category = o.category ?? '';
-          if (category === 'TRYON' || category === 'GUEST') continue;
+          if (category === 'TRYON' || category === 'GUEST') {
+            counts.ordersSkippedCategory++;
+            continue;
+          }
 
           const date = dateParts(tsOf(o));
           const userObjId = o.user && o.user._id ? o.user._id : toObjectId(o.user) ?? new ObjectId(PLACEHOLDER_HEX);
@@ -328,7 +394,7 @@ export class SeedAdminActivity {
             (s: number, it: any) => s + (it.prices?.[0]?.price ?? 0),
             0,
           );
-          const name = o.packageName ?? o.packageId ?? o._id.toHexString();
+          const name = resolvePackageName(o, packages);
           const type = category === 'ADDON' ? 'purchaseFeature' : 'purchasePackage';
 
           await insertBase(date, userObjId, type, {
@@ -362,13 +428,37 @@ export class SeedAdminActivity {
           counts.orders++;
         }
 
-        await markDone('order', orders.map((o: any) => o._id));
+        // Only mark the batch "done" for orders whose sells were actually written;
+        // otherwise `backfill_progress` would hide them from future re-runs.
+        const writtenIds = orders
+          .filter((o: any) => String(o?.status ?? '').toUpperCase() === 'COMPLETED' && !['TRYON', 'GUEST'].includes(o?.category ?? ''))
+          .map((o: any) => o._id);
+        if (writtenIds.length > 0) {
+          await markDone('order', writtenIds);
+        }
         batch++;
-        Context.current().heartbeat({ phase: 'orders', batch, orders: counts.orders, sells: counts.sells });
+        Context.current().heartbeat({
+          phase: 'orders',
+          batch,
+          orders: counts.orders,
+          ordersTotal: counts.ordersTotal,
+          sells: counts.sells,
+        });
       }
 
+      if (counts.ordersTotal > 0 && counts.ordersCompleted === 0) {
+        jobLog.warn(
+          `SeedAdminActivity: ${counts.ordersTotal} order(s) found but 0 completed (skippedStatus=${counts.ordersSkippedStatus}, skippedCategory=${counts.ordersSkippedCategory}). Sample: ${JSON.stringify(sampledStatuses)}`,
+        );
+      }
+      const sellCount = await dst.collection('sells').countDocuments({ type: 'package' });
+      const uaCount = await dst.collection('user_activities').countDocuments();
+      jobLog.warn(
+        `SeedAdminActivity: admin db "${adminDatabase}" sells(type=package)=${sellCount}, user_activities=${uaCount}`,
+      );
+
       jobLog.success(
-        `Completed: users=${counts.users}, albums=${counts.albums}, media=${counts.media}, invites=${counts.invites}, accepted=${counts.accepted}, orders=${counts.orders}, sells=${counts.sells}, baseActivities=${counts.baseActivities}`,
+        `Completed: users=${counts.users}, albums=${counts.albums}, media=${counts.media}, invites=${counts.invites}, accepted=${counts.accepted}, orders=${counts.orders} (total=${counts.ordersTotal}, completed=${counts.ordersCompleted}, skippedStatus=${counts.ordersSkippedStatus}, skippedCategory=${counts.ordersSkippedCategory}), sells=${counts.sells}, baseActivities=${counts.baseActivities}`,
       );
 
       return { ...counts, batches: batch, completed: true };
