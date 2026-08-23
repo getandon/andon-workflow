@@ -197,3 +197,23 @@ export interface ClearActivityDataOutput {
   processedBusEventsDeleted: number;
   completed: boolean;
 }
+
+export interface SeedAdminActivityInput {
+  database?: string;
+  adminDatabase?: string;
+  batchSize?: number;
+  clearFirst?: boolean;
+}
+
+export interface SeedAdminActivityOutput {
+  users: number;
+  albums: number;
+  media: number;
+  invites: number;
+  accepted: number;
+  orders: number;
+  sells: number;
+  baseActivities: number;
+  batches: number;
+  completed: boolean;
+}

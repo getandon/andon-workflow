@@ -4,5 +4,6 @@
     "declaration": true,
     "outDir": "../../dist/apps/worker"
   },
-  "include": ["src/**/*", "../../libs/common/src/**/*", "../../libs/workflows/src/**/*"]
+  "include": ["src/**/*", "../../libs/common/src/**/*", "../../libs/workflows/src/**/*"],
+  "exclude": ["**/*.spec.ts", "../../libs/common/src/**/*.spec.ts"]
 }

@@ -399,4 +399,35 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
       },
     },
   },
+  {
+    name: 'seedAdminActivity',
+    label: 'Seed Admin Activity',
+    description: 'Backfill the full admin analytics (pixo-admin-db) from the current user data (users, albums, media, invites, roles, orders).',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Source Database', description: 'MongoDB database name to read from (default: album-server-db)' },
+          adminDatabase: { type: 'string', title: 'Admin Database', description: 'MongoDB database name to write admin analytics into (default: pixo-admin-db)' },
+          batchSize: { type: 'number', title: 'Batch Size', description: 'Documents per batch (default: 100)' },
+          clearFirst: { type: 'boolean', title: 'Clear First', description: 'Delete existing admin analytics before seeding (destructive)' },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          users: { type: 'number', title: 'Users' },
+          albums: { type: 'number', title: 'Albums' },
+          media: { type: 'number', title: 'Media' },
+          invites: { type: 'number', title: 'Invites' },
+          accepted: { type: 'number', title: 'Accepted' },
+          orders: { type: 'number', title: 'Orders' },
+          sells: { type: 'number', title: 'Sells' },
+          baseActivities: { type: 'number', title: 'Base Activities' },
+          batches: { type: 'number', title: 'Batches' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
 ];
