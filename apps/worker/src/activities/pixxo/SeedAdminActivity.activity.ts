@@ -42,6 +42,13 @@ function tsOf(doc: any, field = 'createdAt'): number {
 
 const GB = 1024 * 1024 * 1024;
 
+function packageDisplayName(pkg: any): string {
+  if (pkg?.name) return String(pkg.name);
+  if (pkg?._id) return toHex(pkg._id);
+  if (pkg?.id) return String(pkg.id);
+  return 'Unknown';
+}
+
 function resolvePackageName(order: any, packages: any[]): string {
   if (order?.packageName) return String(order.packageName);
 
@@ -69,19 +76,27 @@ function resolvePackageName(order: any, packages: any[]): string {
   });
 
   if (matches.length === 1) {
-    return String(matches[0].name ?? matches[0].id);
+    return packageDisplayName(matches[0]);
   }
   if (matches.length > 1) {
     const exact = matches.find((p: any) => {
       const dur = ((p.items ?? []) as any[]).find((x: any) => x.type === 'DURATION');
       return !dur || (year > 0 && Math.abs(Number(dur.quantity) - year) < 0.01);
     });
-    return String((exact ?? matches[0]).name ?? (exact ?? matches[0]).id);
+    return packageDisplayName(exact ?? matches[0]);
   }
 
-  if (order?.packageId) return String(order.packageId);
-  if (order?._id) return (order._id.toHexString?.() ?? String(order._id));
-  return String(order?.id ?? '');
+  if (order?.packageId) {
+    const packageId = String(order.packageId);
+    const byId = (packages ?? []).find((p: any) => {
+      if (p?.id && String(p.id) === packageId) return true;
+      if (p?._id && toHex(p._id) === packageId) return true;
+      return false;
+    });
+    if (byId) return packageDisplayName(byId);
+  }
+
+  return 'Unknown';
 }
 
 function derivedObjectId(...parts: (string | ObjectId)[]): ObjectId {

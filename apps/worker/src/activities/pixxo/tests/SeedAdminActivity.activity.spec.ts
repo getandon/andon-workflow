@@ -141,4 +141,22 @@ describe('SeedAdminActivity', () => {
     await expect(dst.collection('base_activities').countDocuments()).resolves.toBe(13);
     await expect(dst.collection('sells').countDocuments()).resolves.toBe(2);
   });
+
+  it('labels unmatched orders as "Unknown" instead of a raw order id', async () => {
+    const src = client.db('album-server-db');
+    await src.collection('order').deleteMany({});
+    await src.collection('order').insertMany([
+      {
+        _id: O1, user: U1, createdAt: 1700040000000, status: 'COMPLETED', category: '',
+        items: [{ type: 'SIZE', quantity: 30 * 1024 * 1024 * 1024 }],
+      },
+    ]);
+
+    await activity.seedAdminActivity({ clearFirst: true, batchSize: 2 });
+
+    const dst = client.db('pixo-admin-db');
+    const sells = await dst.collection('sells').find({ type: 'package' }).toArray();
+    expect(sells).toHaveLength(1);
+    expect(sells[0].name).toBe('Unknown');
+  });
 });
