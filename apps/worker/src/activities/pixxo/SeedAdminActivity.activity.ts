@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
-import { MongoClient, ObjectId } from 'mongodb';
+import { createHash } from 'crypto';
+import { AnyBulkWriteOperation, Collection, Db, MongoClient, ObjectId } from 'mongodb';
 import {
   SeedAdminActivityInput,
   SeedAdminActivityOutput,
   requiredEnv,
   toHex,
   toObjectId,
-  markProcessed,
 } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
@@ -16,6 +16,7 @@ const DEFAULT_ADMIN_DATABASE = 'pixo-admin-db';
 const DEFAULT_BATCH_SIZE = 100;
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 const PLACEHOLDER_HEX = '000000000000000000000000';
+const ZERO_OBJECT_ID = new ObjectId(PLACEHOLDER_HEX);
 
 interface DateParts {
   year: number;
@@ -83,6 +84,81 @@ function resolvePackageName(order: any, packages: any[]): string {
   return String(order?.id ?? '');
 }
 
+function derivedObjectId(...parts: (string | ObjectId)[]): ObjectId {
+  const key = parts.map((p) => (p instanceof ObjectId ? p.toHexString() : String(p))).join(':');
+  return new ObjectId(createHash('md5').update(key).digest('hex').slice(0, 24));
+}
+
+async function writeBulk(collection: Collection, ops: AnyBulkWriteOperation[]): Promise<void> {
+  if (ops.length === 0) return;
+  try {
+    await collection.bulkWrite(ops, { ordered: false });
+  } catch (err: any) {
+    const writeErrors: any[] = err?.writeErrors ?? [];
+    const allDupes =
+      (writeErrors.length > 0 && writeErrors.every((e) => e?.code === 11000)) ||
+      (writeErrors.length === 0 && err?.code === 11000);
+    if (!allDupes) throw err;
+  }
+}
+
+class UpsertAggregator {
+  private entries = new Map<string, { filter: any; inc: Record<string, number>; addToSet: Record<string, any[]> }>();
+
+  add(
+    key: string,
+    filter: any,
+    inc: Record<string, number>,
+    addToSet?: [string, any][],
+  ): void {
+    let entry = this.entries.get(key);
+    if (!entry) {
+      entry = { filter, inc: {}, addToSet: {} };
+      this.entries.set(key, entry);
+    }
+    for (const [field, value] of Object.entries(inc)) {
+      entry.inc[field] = (entry.inc[field] ?? 0) + value;
+    }
+    if (addToSet) {
+      for (const [field, id] of addToSet) {
+        (entry.addToSet[field] ??= []).push(id);
+      }
+    }
+  }
+
+  toOps(upsert = true): AnyBulkWriteOperation[] {
+    const ops: AnyBulkWriteOperation[] = [];
+    for (const entry of this.entries.values()) {
+      const update: any = {};
+      if (Object.keys(entry.inc).length > 0) update.$inc = entry.inc;
+      if (Object.keys(entry.addToSet).length > 0) {
+        update.$addToSet = Object.fromEntries(
+          Object.entries(entry.addToSet).map(([field, ids]) => [field, { $each: ids }]),
+        );
+      }
+      if (Object.keys(update).length === 0) continue;
+      ops.push({ updateOne: { filter: entry.filter, update, upsert } });
+    }
+    return ops;
+  }
+}
+
+interface BackfillCursor {
+  _id: string;
+  lastId: ObjectId;
+}
+
+async function loadCursor(dst: Db, sourceCollection: string): Promise<ObjectId> {
+  const doc = await dst.collection<BackfillCursor>('backfill_cursor').findOne({ _id: sourceCollection });
+  return doc?.lastId instanceof ObjectId ? doc.lastId : ZERO_OBJECT_ID;
+}
+
+async function saveCursor(dst: Db, sourceCollection: string, lastId: ObjectId): Promise<void> {
+  await dst
+    .collection<BackfillCursor>('backfill_cursor')
+    .updateOne({ _id: sourceCollection }, { $set: { lastId } }, { upsert: true });
+}
+
 @Injectable()
 export class SeedAdminActivity {
   async seedAdminActivity(input: SeedAdminActivityInput = {}): Promise<SeedAdminActivityOutput> {
@@ -118,10 +194,6 @@ export class SeedAdminActivity {
         `SeedAdminActivity: source.db="${database}" target.database="${adminDatabase}"`,
       );
 
-      await dst
-        .collection('backfill_progress')
-        .createIndex({ sourceCollection: 1, sourceId: 1 }, { unique: true });
-
       if (input.clearFirst) {
         for (const c of [
           'base_activities',
@@ -131,90 +203,81 @@ export class SeedAdminActivity {
           'albums',
           'album_types',
           'users',
-          'backfill_progress',
+          'backfill_cursor',
         ]) {
           await dst.collection(c).deleteMany({});
         }
         jobLog.warn('Cleared admin analytics collections');
       }
 
-      const findUnprocessed = async (sourceCollection: string): Promise<any[]> => {
-        const processed = await dst
-          .collection('backfill_progress')
-          .find({ sourceCollection })
-          .project({ sourceId: 1 })
-          .toArray();
-        const processedIds = processed.map((p: any) => p.sourceId);
-        if (processedIds.length === 0) {
-          return src
+      const forEachBatch = async (
+        sourceCollection: string,
+        phase: string,
+        handleBatch: (docs: any[]) => Promise<Record<string, unknown>> | void,
+      ): Promise<void> => {
+        let lastId = await loadCursor(dst, sourceCollection);
+        while (true) {
+          const docs = await src
             .collection(sourceCollection)
-            .find({})
+            .find({ _id: { $gt: lastId } })
             .sort({ _id: 1 })
             .limit(batchSize)
             .toArray();
+          if (docs.length === 0) break;
+
+          const extras = (await handleBatch(docs)) ?? {};
+
+          lastId = docs[docs.length - 1]._id;
+          await saveCursor(dst, sourceCollection, lastId);
+          batch++;
+          Context.current().heartbeat({ phase, batch, ...extras });
         }
-        return src
-          .collection(sourceCollection)
-          .find({ _id: { $nin: processedIds } })
-          .limit(batchSize)
-          .toArray();
-      };
-
-      const markDone = async (sourceCollection: string, ids: ObjectId[]) => {
-        await markProcessed(dst, sourceCollection, ids);
-      };
-
-      const insertBase = async (
-        date: DateParts,
-        authorId: ObjectId,
-        type: string,
-        metadata: Record<string, unknown>,
-      ) => {
-        await dst.collection('base_activities').insertOne({ ...date, authorId, type, metadata });
-        counts.baseActivities++;
-      };
-
-      const incActivity = async (date: DateParts, inc: Record<string, number>) => {
-        await dst.collection('activities').updateOne(date, { $inc: inc }, { upsert: true });
-      };
-
-      const incUserActivity = async (
-        date: DateParts,
-        inc: Record<string, number>,
-        activeUserId?: ObjectId,
-      ) => {
-        const update: any = { $inc: inc };
-        if (activeUserId) update.$addToSet = { activeUserIds: activeUserId };
-        await dst.collection('user_activities').updateOne(date, update, { upsert: true });
       };
 
       // ── Phase 1: users → signup ────────────────────────────────────────────
-      while (true) {
-        const users = await findUnprocessed('user');
-        if (users.length === 0) break;
+      await forEachBatch('user', 'users', async (users) => {
+        const baseOps: AnyBulkWriteOperation[] = [];
+        const activityAgg = new UpsertAggregator();
+        const userActivityAgg = new UpsertAggregator();
+        const userOps: AnyBulkWriteOperation[] = [];
 
         for (const u of users) {
           const date = dateParts(tsOf(u));
           const authorId = u._id;
-          await insertBase(date, authorId, 'signup', { email: u.email });
-          await incActivity(date, { users: 1 });
-          await incUserActivity(date, { newUsers: 1 }, authorId);
-          await dst
-            .collection('users')
-            .updateOne({ _id: authorId }, { $setOnInsert: { email: u.email } }, { upsert: true });
+          const dateKey = JSON.stringify(date);
+          baseOps.push({
+            insertOne: {
+              document: {
+                _id: derivedObjectId('user', u._id, 'signup'),
+                ...date,
+                authorId,
+                type: 'signup',
+                metadata: { email: u.email },
+              },
+            },
+          });
+          counts.baseActivities++;
+          activityAgg.add(dateKey, date, { users: 1 });
+          userActivityAgg.add(dateKey, date, { newUsers: 1 }, [['activeUserIds', authorId]]);
+          userOps.push({
+            updateOne: {
+              filter: { _id: authorId },
+              update: { $setOnInsert: { email: u.email } },
+              upsert: true,
+            },
+          });
           counts.users++;
         }
 
-        await markDone('user', users.map((u: any) => u._id));
-        batch++;
-        Context.current().heartbeat({ phase: 'users', batch, users: counts.users });
-      }
+        await writeBulk(dst.collection('base_activities'), baseOps);
+        await writeBulk(dst.collection('activities'), activityAgg.toOps());
+        await writeBulk(dst.collection('user_activities'), userActivityAgg.toOps());
+        await writeBulk(dst.collection('users'), userOps);
+        return { users: counts.users };
+      });
 
       // ── Phase 2: albums → createAlbum ──────────────────────────────────────
-      while (true) {
-        const albums = await findUnprocessed('album');
-        if (albums.length === 0) break;
-
+      await forEachBatch('album', 'albums', async (albums) => {
         const withoutAuthor = albums.filter((a: any) => !a.author);
         const albumToOwner = new Map<string, ObjectId>();
         if (withoutAuthor.length > 0) {
@@ -228,11 +291,18 @@ export class SeedAdminActivity {
           }
         }
 
+        const baseOps: AnyBulkWriteOperation[] = [];
+        const activityAgg = new UpsertAggregator();
+        const userActivityAgg = new UpsertAggregator();
+        const albumOps: AnyBulkWriteOperation[] = [];
+        const albumTypeAgg = new UpsertAggregator();
+
         for (const a of albums) {
           const date = dateParts(tsOf(a));
           const albumId = a._id;
           let authorId = toObjectId(a.author);
           if (!authorId) authorId = albumToOwner.get(albumId.toHexString()) ?? new ObjectId(PLACEHOLDER_HEX);
+          const dateKey = JSON.stringify(date);
 
           const metadata = {
             albumId: albumId.toHexString(),
@@ -240,90 +310,133 @@ export class SeedAdminActivity {
             type: String(a.type ?? ''),
             date: Number(a.date) || 0,
           };
-          await insertBase(date, authorId, 'createAlbum', metadata);
-          await incActivity(date, { albums: 1 });
-          await incUserActivity(date, { albums: 1 }, authorId);
-          await dst.collection('albums').updateOne(
-            { _id: albumId },
-            {
-              $setOnInsert: {
+          baseOps.push({
+            insertOne: {
+              document: {
+                _id: derivedObjectId('album', albumId, 'createAlbum'),
+                ...date,
                 authorId,
-                name: a.name,
-                type: String(a.type ?? ''),
-                date: Number(a.date) || 0,
-                medias: 0,
+                type: 'createAlbum',
+                metadata,
               },
             },
-            { upsert: true },
-          );
-          await dst
-            .collection('album_types')
-            .updateOne({ type: a.type }, { $inc: { value: 1 } }, { upsert: true });
+          });
+          counts.baseActivities++;
+          activityAgg.add(dateKey, date, { albums: 1 });
+          userActivityAgg.add(dateKey, date, { albums: 1 }, [['activeUserIds', authorId]]);
+          albumOps.push({
+            updateOne: {
+              filter: { _id: albumId },
+              update: {
+                $setOnInsert: {
+                  authorId,
+                  name: a.name,
+                  type: String(a.type ?? ''),
+                  date: Number(a.date) || 0,
+                  medias: 0,
+                },
+              },
+              upsert: true,
+            },
+          });
+          if (a.type !== undefined && a.type !== null) {
+            albumTypeAgg.add(String(a.type), { type: a.type }, { value: 1 });
+          }
           counts.albums++;
         }
 
-        await markDone('album', albums.map((a: any) => a._id));
-        batch++;
-        Context.current().heartbeat({ phase: 'albums', batch, albums: counts.albums });
-      }
+        await writeBulk(dst.collection('base_activities'), baseOps);
+        await writeBulk(dst.collection('activities'), activityAgg.toOps());
+        await writeBulk(dst.collection('user_activities'), userActivityAgg.toOps());
+        await writeBulk(dst.collection('albums'), albumOps);
+        await writeBulk(dst.collection('album_types'), albumTypeAgg.toOps());
+        return { albums: counts.albums };
+      });
 
       // ── Phase 3: media → uploadImage ───────────────────────────────────────
-      while (true) {
-        const mediaDocs = await findUnprocessed('media');
-        if (mediaDocs.length === 0) break;
+      await forEachBatch('media', 'media', async (mediaDocs) => {
+        const baseOps: AnyBulkWriteOperation[] = [];
+        const activityAgg = new UpsertAggregator();
+        const userActivityAgg = new UpsertAggregator();
+        const albumAgg = new UpsertAggregator();
 
         for (const m of mediaDocs) {
           const date = dateParts(tsOf(m, 'uploadAt'));
           const albumId = toObjectId(m.album) ?? new ObjectId(PLACEHOLDER_HEX);
           const authorId = toObjectId(m.author) ?? new ObjectId(PLACEHOLDER_HEX);
           const size = (m.formats ?? []).reduce((s: number, f: any) => s + (Number(f.size) || 0), 0);
+          const dateKey = JSON.stringify(date);
 
-          await insertBase(date, authorId, 'uploadImage', {
-            albumId: toHex(m.album),
-            mediaId: m._id.toHexString(),
-            size,
+          baseOps.push({
+            insertOne: {
+              document: {
+                _id: derivedObjectId('media', m._id, 'uploadImage'),
+                ...date,
+                authorId,
+                type: 'uploadImage',
+                metadata: {
+                  albumId: toHex(m.album),
+                  mediaId: m._id.toHexString(),
+                  size,
+                },
+              },
+            },
           });
-          await incActivity(date, { medias: 1, uploads: 1, size });
-          await incUserActivity(date, { medias: 1, uploads: 1 }, authorId);
-          await dst.collection('albums').updateOne({ _id: albumId }, { $inc: { medias: 1 } });
+          counts.baseActivities++;
+          activityAgg.add(dateKey, date, { medias: 1, uploads: 1, size });
+          userActivityAgg.add(dateKey, date, { medias: 1, uploads: 1 }, [['activeUserIds', authorId]]);
+          albumAgg.add(albumId.toHexString(), { _id: albumId }, { medias: 1 });
           counts.media++;
         }
 
-        await markDone('media', mediaDocs.map((m: any) => m._id));
-        batch++;
-        Context.current().heartbeat({ phase: 'media', batch, media: counts.media });
-      }
+        await writeBulk(dst.collection('base_activities'), baseOps);
+        await writeBulk(dst.collection('activities'), activityAgg.toOps());
+        await writeBulk(dst.collection('user_activities'), userActivityAgg.toOps());
+        await writeBulk(dst.collection('albums'), albumAgg.toOps(false));
+        return { media: counts.media };
+      });
 
       // ── Phase 4: invites → invite ──────────────────────────────────────────
-      while (true) {
-        const invites = await findUnprocessed('album_invite');
-        if (invites.length === 0) break;
+      await forEachBatch('album_invite', 'invites', async (invites) => {
+        const baseOps: AnyBulkWriteOperation[] = [];
+        const userActivityAgg = new UpsertAggregator();
+        const albumAgg = new UpsertAggregator();
 
         for (const i of invites) {
           const date = dateParts(tsOf(i));
           const albumId = toObjectId(i.album) ?? new ObjectId(PLACEHOLDER_HEX);
           const authorId = toObjectId(i.author) ?? new ObjectId(PLACEHOLDER_HEX);
+          const dateKey = JSON.stringify(date);
 
-          await insertBase(date, authorId, 'invite', {
-            albumId: toHex(i.album),
-            email: i.inviteKey ?? i.email ?? '',
-            inviteId: i._id.toHexString(),
+          baseOps.push({
+            insertOne: {
+              document: {
+                _id: derivedObjectId('album_invite', i._id, 'invite'),
+                ...date,
+                authorId,
+                type: 'invite',
+                metadata: {
+                  albumId: toHex(i.album),
+                  email: i.inviteKey ?? i.email ?? '',
+                  inviteId: i._id.toHexString(),
+                },
+              },
+            },
           });
-          await incUserActivity(date, { invites: 1 }, authorId);
-          await dst.collection('albums').updateOne({ _id: albumId }, { $inc: { invites: 1 } });
+          counts.baseActivities++;
+          userActivityAgg.add(dateKey, date, { invites: 1 }, [['activeUserIds', authorId]]);
+          albumAgg.add(albumId.toHexString(), { _id: albumId }, { invites: 1 });
           counts.invites++;
         }
 
-        await markDone('album_invite', invites.map((i: any) => i._id));
-        batch++;
-        Context.current().heartbeat({ phase: 'invites', batch, invites: counts.invites });
-      }
+        await writeBulk(dst.collection('base_activities'), baseOps);
+        await writeBulk(dst.collection('user_activities'), userActivityAgg.toOps());
+        await writeBulk(dst.collection('albums'), albumAgg.toOps(false));
+        return { invites: counts.invites };
+      });
 
       // ── Phase 5: roles → acceptInvite ──────────────────────────────────────
-      while (true) {
-        const roles = await findUnprocessed('album_role');
-        if (roles.length === 0) break;
-
+      await forEachBatch('album_role', 'roles', async (roles) => {
         const albumIds = [...new Set(roles.map((r: any) => toHex(r.album)))];
         const authorMap = new Map<string, string>();
         if (albumIds.length > 0) {
@@ -337,6 +450,10 @@ export class SeedAdminActivity {
           }
         }
 
+        const baseOps: AnyBulkWriteOperation[] = [];
+        const userActivityAgg = new UpsertAggregator();
+        const albumAgg = new UpsertAggregator();
+
         for (const r of roles) {
           if (r.userRole === 'OWNER') continue;
           const userId = toHex(r.user);
@@ -346,28 +463,43 @@ export class SeedAdminActivity {
           const date = dateParts(tsOf(r));
           const userObjId = toObjectId(r.user) ?? new ObjectId(PLACEHOLDER_HEX);
           const albumObjId = toObjectId(r.album) ?? new ObjectId(PLACEHOLDER_HEX);
+          const dateKey = JSON.stringify(date);
 
-          await insertBase(date, userObjId, 'acceptInvite', {
-            inviteId: '',
-            type: String(r.userRole ?? ''),
-            albumId,
+          baseOps.push({
+            insertOne: {
+              document: {
+                _id: derivedObjectId('album_role', r._id, 'acceptInvite'),
+                ...date,
+                authorId: userObjId,
+                type: 'acceptInvite',
+                metadata: {
+                  inviteId: '',
+                  type: String(r.userRole ?? ''),
+                  albumId,
+                },
+              },
+            },
           });
-          await incUserActivity(date, { accepted: 1 }, userObjId);
-          await dst.collection('albums').updateOne({ _id: albumObjId }, { $inc: { accepted: 1 } });
+          counts.baseActivities++;
+          userActivityAgg.add(dateKey, date, { accepted: 1 }, [['activeUserIds', userObjId]]);
+          albumAgg.add(albumObjId.toHexString(), { _id: albumObjId }, { accepted: 1 });
           counts.accepted++;
         }
 
-        await markDone('album_role', roles.map((r: any) => r._id));
-        batch++;
-        Context.current().heartbeat({ phase: 'roles', batch, accepted: counts.accepted });
-      }
+        await writeBulk(dst.collection('base_activities'), baseOps);
+        await writeBulk(dst.collection('user_activities'), userActivityAgg.toOps());
+        await writeBulk(dst.collection('albums'), albumAgg.toOps(false));
+        return { accepted: counts.accepted };
+      });
 
       // ── Phase 6: orders → purchase ─────────────────────────────────────────
       const packages = await src.collection('packages').find({}).toArray();
       let sampledStatuses: Array<{ status: string; category: string }> = [];
-      while (true) {
-        const orders = await findUnprocessed('order');
-        if (orders.length === 0) break;
+      await forEachBatch('order', 'orders', async (orders) => {
+        const baseOps: AnyBulkWriteOperation[] = [];
+        const sellOps: AnyBulkWriteOperation[] = [];
+        const userActivityAgg = new UpsertAggregator();
+        const endTimeByUser = new Map<string, number>();
 
         for (const o of orders) {
           counts.ordersTotal++;
@@ -389,6 +521,7 @@ export class SeedAdminActivity {
 
           const date = dateParts(tsOf(o));
           const userObjId = o.user && o.user._id ? o.user._id : toObjectId(o.user) ?? new ObjectId(PLACEHOLDER_HEX);
+          const dateKey = JSON.stringify(date);
 
           const amount = o.subtotal ?? (o.items ?? []).reduce(
             (s: number, it: any) => s + (it.prices?.[0]?.price ?? 0),
@@ -396,55 +529,67 @@ export class SeedAdminActivity {
           );
           const name = resolvePackageName(o, packages);
           const type = category === 'ADDON' ? 'purchaseFeature' : 'purchasePackage';
+          const sellType = category === 'ADDON' ? 'feature' : 'package';
 
-          await insertBase(date, userObjId, type, {
-            packageId: o.packageId ?? o._id.toHexString(),
-            name,
-            amount,
-            currency: 'EUR',
+          baseOps.push({
+            insertOne: {
+              document: {
+                _id: derivedObjectId('order', o._id, type),
+                ...date,
+                authorId: userObjId,
+                type,
+                metadata: {
+                  packageId: o.packageId ?? o._id.toHexString(),
+                  name,
+                  amount,
+                  currency: 'EUR',
+                },
+              },
+            },
           });
-
-          await dst.collection('sells').insertOne({
-            ...date,
-            type: category === 'ADDON' ? 'feature' : 'package',
-            name,
-            count: 1,
-            revenue: amount,
+          counts.baseActivities++;
+          sellOps.push({
+            insertOne: {
+              document: {
+                _id: derivedObjectId('sells', o._id, sellType),
+                ...date,
+                type: sellType,
+                name,
+                count: 1,
+                revenue: amount,
+              },
+            },
           });
           counts.sells++;
 
           const duration = (o.items ?? []).find((it: any) => it.type === 'YEAR')?.quantity ?? 0;
-          await incUserActivity(
+          userActivityAgg.add(
+            dateKey,
             date,
             category === 'ADDON' ? { features: 1 } : { packages: 1 },
-            userObjId,
+            [['activeUserIds', userObjId]],
           );
           if (category !== 'ADDON') {
-            await dst
-              .collection('users')
-              .updateOne({ _id: userObjId }, { $set: { endTime: tsOf(o) + duration * ONE_YEAR_MS } });
+            endTimeByUser.set(userObjId.toHexString(), tsOf(o) + duration * ONE_YEAR_MS);
           }
 
           counts.orders++;
         }
 
-        // Only mark the batch "done" for orders whose sells were actually written;
-        // otherwise `backfill_progress` would hide them from future re-runs.
-        const writtenIds = orders
-          .filter((o: any) => String(o?.status ?? '').toUpperCase() === 'COMPLETED' && !['TRYON', 'GUEST'].includes(o?.category ?? ''))
-          .map((o: any) => o._id);
-        if (writtenIds.length > 0) {
-          await markDone('order', writtenIds);
-        }
-        batch++;
-        Context.current().heartbeat({
-          phase: 'orders',
-          batch,
-          orders: counts.orders,
-          ordersTotal: counts.ordersTotal,
-          sells: counts.sells,
-        });
-      }
+        await writeBulk(dst.collection('base_activities'), baseOps);
+        await writeBulk(dst.collection('sells'), sellOps);
+        await writeBulk(dst.collection('user_activities'), userActivityAgg.toOps());
+        await writeBulk(
+          dst.collection('users'),
+          [...endTimeByUser.entries()].map(([hex, endTime]) => ({
+            updateOne: {
+              filter: { _id: new ObjectId(hex) },
+              update: { $set: { endTime } },
+            },
+          })),
+        );
+        return { orders: counts.orders, ordersTotal: counts.ordersTotal, sells: counts.sells };
+      });
 
       if (counts.ordersTotal > 0 && counts.ordersCompleted === 0) {
         jobLog.warn(

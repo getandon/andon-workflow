@@ -66,7 +66,11 @@ export async function AdHocWorkflow(input: AdHocWorkflowInput): Promise<void> {
     const result = await scheduleActivity<any>(
       activity.name as any,
       [resolvedParams],
-      { taskQueue: activity.taskQueue, startToCloseTimeout: '8 hours' },
+      {
+        taskQueue: activity.taskQueue,
+        startToCloseTimeout: '8 hours',
+        heartbeatTimeout: '15 minutes',
+      },
     );
 
     if (result !== undefined && result !== null) {
