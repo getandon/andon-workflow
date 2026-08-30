@@ -26,6 +26,7 @@ import { GenerateAlbumActivity } from '../activities/pixxo/GenerateAlbumActivity
 import { GenerateMediaActivity } from '../activities/pixxo/GenerateMediaActivity.activity';
 import { GenerateInviteActivity } from '../activities/pixxo/GenerateInviteActivity.activity';
 import { GenerateOrderActivity } from '../activities/pixxo/GenerateOrderActivity.activity';
+import { GenerateUserActivity } from '../activities/pixxo/GenerateUserActivity.activity';
 import { ClearActivityDataActivity } from '../activities/pixxo/ClearActivityData.activity';
 import { SeedAdminActivity } from '../activities/pixxo/SeedAdminActivity.activity';
 
@@ -65,6 +66,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly generateMediaActivity: GenerateMediaActivity,
     private readonly generateInviteActivity: GenerateInviteActivity,
     private readonly generateOrderActivity: GenerateOrderActivity,
+    private readonly generateUserActivity: GenerateUserActivity,
     private readonly clearActivityData: ClearActivityDataActivity,
     private readonly seedAdminActivity: SeedAdminActivity,
   ) {
@@ -98,6 +100,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
       generateMediaActivity: this.generateMediaActivity.generateMediaActivity.bind(this.generateMediaActivity),
       generateInviteActivity: this.generateInviteActivity.generateInviteActivity.bind(this.generateInviteActivity),
       generateOrderActivity: this.generateOrderActivity.generateOrderActivity.bind(this.generateOrderActivity),
+      generateUserActivity: this.generateUserActivity.generateUserActivity.bind(this.generateUserActivity),
       clearActivityData: this.clearActivityData.clearActivityData.bind(this.clearActivityData),
       seedAdminActivity: this.seedAdminActivity.seedAdminActivity.bind(this.seedAdminActivity),
     };

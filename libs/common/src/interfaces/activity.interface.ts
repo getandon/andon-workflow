@@ -187,6 +187,19 @@ export interface GenerateOrderActivityOutput {
   completed: boolean;
 }
 
+export interface GenerateUserActivityInput {
+  database?: string;
+  batchSize?: number;
+  lastId?: string;
+}
+
+export interface GenerateUserActivityOutput {
+  totalUsers: number;
+  eventsCreated: number;
+  batches: number;
+  completed: boolean;
+}
+
 export interface ClearActivityDataInput {
   database?: string;
 }

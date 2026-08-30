@@ -378,6 +378,29 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
     },
   },
   {
+    name: 'generateUserActivity',
+    label: 'Generate User Activity',
+    description: 'Backfill activity feed events for user SIGNED_UP from the user collection',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
+          batchSize: { type: 'number', title: 'Batch Size', description: 'Users per batch (default: 100)' },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          totalUsers: { type: 'number', title: 'Total Users' },
+          eventsCreated: { type: 'number', title: 'Events Created' },
+          batches: { type: 'number', title: 'Batches' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
+  {
     name: 'clearActivityData',
     label: 'Clear Activity Data',
     description: 'Delete all documents from activity_event, activity_summary, and processed_bus_event collections. Destructive — use before re-running backfill.',
