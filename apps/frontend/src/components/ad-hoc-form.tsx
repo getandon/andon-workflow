@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { GripVertical, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '~/lib/api';
 import { Input } from '~/components/ui/input';
@@ -39,22 +40,12 @@ interface AdHocFormProps {
   errors?: Record<string, string>;
 }
 
-let cachedActivities: ActivitySchemaEntry[] | null = null;
-
 export function AdHocForm({ value, onChange, taskQueueOptions, errors }: AdHocFormProps) {
-  const [availableActivities, setAvailableActivities] = useState<ActivitySchemaEntry[]>(cachedActivities ?? []);
-  const [loading, setLoading] = useState(!cachedActivities);
-
-  useEffect(() => {
-    if (cachedActivities) return;
-    api<ActivitySchemaEntry[]>('/api/workers/activities')
-      .then((data) => {
-        cachedActivities = data;
-        setAvailableActivities(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const { data: availableActivities = [], isLoading: loading } = useQuery({
+    queryKey: ['available-activities'],
+    queryFn: () => api<ActivitySchemaEntry[]>('/api/workers/activities'),
+    refetchInterval: 10_000,
+  });
 
   const selectedNames = new Set(value.activities.map((a) => a.name));
 
