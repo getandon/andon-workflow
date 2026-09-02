@@ -19,20 +19,22 @@ jest.mock('../../../job-log', () => ({
 
 jest.setTimeout(20000);
 
-const U1 = new ObjectId('0000000000000000000000a1');
-const U2 = new ObjectId('0000000000000000000000a2');
-const U3 = new ObjectId('0000000000000000000000a3');
-const AL1 = new ObjectId('0000000000000000000000b1');
-const AL2 = new ObjectId('0000000000000000000000b2');
-const M1 = new ObjectId('0000000000000000000000c1');
-const M2 = new ObjectId('0000000000000000000000c2');
-const M3 = new ObjectId('0000000000000000000000c3');
-const IN1 = new ObjectId('0000000000000000000000d1');
-const IN2 = new ObjectId('0000000000000000000000d2');
-const O1 = new ObjectId('0000000000000000000000e1');
-const O2 = new ObjectId('0000000000000000000000e2');
-const O3 = new ObjectId('0000000000000000000000e3');
-const O4 = new ObjectId('0000000000000000000000e4');
+const at = (ms: number) => ObjectId.createFromTime(Math.floor(ms / 1000));
+
+const U1 = at(1700000000000);
+const U2 = at(1700100000000);
+const U3 = at(1700200000000);
+const AL1 = at(1700050000000);
+const AL2 = at(1700150000000);
+const M1 = at(1700060000000);
+const M2 = at(1700070000000);
+const M3 = at(1700080000000);
+const IN1 = at(1700030000000);
+const IN2 = at(1700130000000);
+const O1 = at(1700040000000);
+const O2 = at(1700140000000);
+const O3 = at(1700240000000);
+const O4 = at(1700340000000);
 
 async function seedSource(src: ReturnType<MongoClient['db']>) {
   await src.collection('user').insertMany([
@@ -54,8 +56,8 @@ async function seedSource(src: ReturnType<MongoClient['db']>) {
     { _id: IN2, album: AL2, author: U3, email: 'inv2@test.dev', createdAt: 1700130000000 },
   ]);
   await src.collection('album_role').insertMany([
-    { _id: new ObjectId('0000000000000000000000f1'), album: AL2, user: U3, userRole: 'OWNER', createdAt: 1700160000000 },
-    { _id: new ObjectId('0000000000000000000000f2'), album: AL1, user: U2, userRole: 'EDITOR', createdAt: 1700090000000 },
+    { _id: at(1700160000000), album: AL2, user: U3, userRole: 'OWNER', createdAt: 1700160000000 },
+    { _id: at(1700090000000), album: AL1, user: U2, userRole: 'EDITOR', createdAt: 1700090000000 },
   ]);
   await src.collection('packages').insertOne({
     _id: new ObjectId('0000000000000000000000f9'),

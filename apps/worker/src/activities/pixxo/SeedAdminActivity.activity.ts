@@ -35,9 +35,8 @@ function dateParts(ts: number): DateParts {
   };
 }
 
-function tsOf(doc: any, field = 'createdAt'): number {
-  const t = Number(doc?.[field]);
-  return t || (doc._id?.getTimestamp?.().getTime() ?? Date.now());
+function tsOf(doc: any): number {
+  return doc._id?.getTimestamp?.().getTime() ?? Date.now();
 }
 
 const GB = 1024 * 1024 * 1024;
@@ -376,7 +375,7 @@ export class SeedAdminActivity {
         const albumAgg = new UpsertAggregator();
 
         for (const m of mediaDocs) {
-          const date = dateParts(tsOf(m, 'uploadAt'));
+          const date = dateParts(tsOf(m));
           const albumId = toObjectId(m.album) ?? new ObjectId(PLACEHOLDER_HEX);
           const authorId = toObjectId(m.author) ?? new ObjectId(PLACEHOLDER_HEX);
           const size = (m.formats ?? []).reduce((s: number, f: any) => s + (Number(f.size) || 0), 0);
