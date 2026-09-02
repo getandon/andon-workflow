@@ -161,7 +161,8 @@ describe('GenerateInviteActivity', () => {
     const albumAuthor = new ObjectId();
     const albumId = new ObjectId();
     const userId = new ObjectId();
-    const roles = [{ _id: new ObjectId(), album: albumId, user: userId, userRole: 'GUEST', createdAt: 1700000000000 }];
+    const roleId = new ObjectId();
+    const roles = [{ _id: roleId, album: albumId, user: userId, userRole: 'GUEST', createdAt: 1700000000000 }];
 
     setupCollection('album_role', makeCursor(roles));
     setupCollection('album', makeCursor([{ _id: albumId, author: albumAuthor }]));
@@ -180,7 +181,7 @@ describe('GenerateInviteActivity', () => {
     );
     expect(insertCall).toBeDefined();
     expect(insertCall[0].verb).toBe('ACCEPTED');
-    expect(insertCall[0].createdAt).toBe(1700000000000);
+    expect(insertCall[0].createdAt).toBe(roleId.getTimestamp().getTime());
     expect(insertCall[0].actorName).toBe('Member');
   });
 
@@ -200,7 +201,7 @@ describe('GenerateInviteActivity', () => {
     expect(result.acceptedCreated).toBe(0);
   });
 
-  it('should fall back to role._id timestamp when role.createdAt is 0', async () => {
+  it('should use role._id timestamp when role.createdAt is 0', async () => {
     const albumAuthor = new ObjectId();
     const roleId = new ObjectId();
     const expectedTs = roleId.getTimestamp().getTime();
@@ -222,7 +223,7 @@ describe('GenerateInviteActivity', () => {
     expect(insertCall[0].createdAt).toBe(expectedTs);
   });
 
-  it('should fall back to role._id timestamp when role.createdAt is null', async () => {
+  it('should use role._id timestamp when role.createdAt is null', async () => {
     const albumAuthor = new ObjectId();
     const roleId = new ObjectId();
     const expectedTs = roleId.getTimestamp().getTime();

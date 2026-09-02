@@ -35,7 +35,7 @@ export class GenerateUserActivity {
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_AccountSignedUp_${userObjId.toHexString()}`;
-          const createdAt = Number(user.createdAt) || userObjId.getTimestamp().getTime();
+          const createdAt = userObjId.getTimestamp().getTime();
 
           try {
             const eventObjId = new ObjectId();

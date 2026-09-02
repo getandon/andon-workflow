@@ -146,7 +146,7 @@ describe('GenerateAlbumActivity', () => {
     expect(insertCall.verb).toBe('CREATED');
     expect(insertCall.targetType).toBe('ALBUM');
     expect(insertCall.eventId).toBe(`Backfill_AlbumCreated_${albumId.toHexString()}`);
-    expect(insertCall.createdAt).toBe(1700000000000);
+    expect(insertCall.createdAt).toBe(albumId.getTimestamp().getTime());
     expect(insertCall.actorName).toBe('Test User');
 
     expect(mockCollectionFns['backfill_progress'].insertMany).toHaveBeenCalled();
@@ -199,7 +199,7 @@ describe('GenerateAlbumActivity', () => {
     expect(insertCall.actorId.toHexString()).toBe('000000000000000000000000');
   });
 
-  it('should fall back to _id timestamp when createdAt is null', async () => {
+  it('should use _id timestamp when createdAt is null', async () => {
     const authorId = new ObjectId();
     const albumId = new ObjectId();
     const ts = albumId.getTimestamp().getTime();
@@ -214,7 +214,7 @@ describe('GenerateAlbumActivity', () => {
     expect(insertCall.createdAt).toBe(ts);
   });
 
-  it('should fall back to _id timestamp when createdAt is missing', async () => {
+  it('should use _id timestamp when createdAt is missing', async () => {
     const authorId = new ObjectId();
     const albumId = new ObjectId();
     const ts = albumId.getTimestamp().getTime();

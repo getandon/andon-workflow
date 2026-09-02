@@ -130,7 +130,7 @@ describe('GenerateUserActivity', () => {
     expect(insertCall.userId).toBeDefined();
   });
 
-  it('should fall back to _id timestamp when createdAt is null', async () => {
+  it('should use _id timestamp when createdAt is null', async () => {
     const userId = new ObjectId();
     const expectedTs = userId.getTimestamp().getTime();
     setupUserDocs([
@@ -143,7 +143,7 @@ describe('GenerateUserActivity', () => {
     expect(insertCall.createdAt).toBe(expectedTs);
   });
 
-  it('should fall back to _id timestamp when createdAt is 0', async () => {
+  it('should use _id timestamp when createdAt is 0', async () => {
     const userId = new ObjectId();
     const expectedTs = userId.getTimestamp().getTime();
     setupUserDocs([

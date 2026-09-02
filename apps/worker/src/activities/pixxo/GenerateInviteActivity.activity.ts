@@ -61,7 +61,7 @@ export class GenerateInviteActivity {
                 const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
                 const eventId = `Backfill_AlbumInvitesCreated_${invite._id.toHexString()}`;
-                const createdAt = Number(invite.createdAt) || invite._id.getTimestamp().getTime();
+                const createdAt = invite._id.getTimestamp().getTime();
 
                 try {
                     const eventObjId = new ObjectId();
@@ -194,7 +194,7 @@ export class GenerateInviteActivity {
                 const user = userMap.get(userId);
                 const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
-                const createdAt = Number(role.createdAt) || role._id.getTimestamp().getTime();
+                const createdAt = role._id.getTimestamp().getTime();
                 const eventId = `Backfill_AlbumInviteAccepted_${albumId}_${userId}`;
 
                 try {

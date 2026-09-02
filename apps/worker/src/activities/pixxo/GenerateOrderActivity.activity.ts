@@ -51,7 +51,7 @@ export class GenerateOrderActivity {
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_PaymentCaptured_${orderId}`;
-          const createdAt = Number(order.createdAt) || order._id.getTimestamp().getTime();
+          const createdAt = order._id.getTimestamp().getTime();
 
           try {
             const eventObjId = new ObjectId();

@@ -87,7 +87,7 @@ export class GenerateAlbumActivity {
           const actorName = user?.name || (user?.email ? user.email.split('@')[0] : 'Unknown');
 
           const eventId = `Backfill_AlbumCreated_${albumId}`;
-          const createdAt = Number(album.createdAt) || album._id.getTimestamp().getTime();
+          const createdAt = album._id.getTimestamp().getTime();
 
           try {
             const eventObjId = new ObjectId();
