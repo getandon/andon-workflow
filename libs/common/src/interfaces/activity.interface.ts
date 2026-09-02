@@ -134,6 +134,7 @@ export interface GenerateAlbumActivityInput {
   database?: string;
   batchSize?: number;
   lastId?: string;
+  clearFirst?: boolean;
 }
 
 export interface GenerateAlbumActivityOutput {
@@ -147,6 +148,7 @@ export interface GenerateMediaActivityInput {
   database?: string;
   batchSize?: number;
   lastId?: string;
+  clearFirst?: boolean;
 }
 
 export interface GenerateMediaActivityOutput {
@@ -163,6 +165,7 @@ export interface GenerateInviteActivityInput {
   roleBatchSize?: number;
   lastInviteId?: string;
   lastRoleId?: string;
+  clearFirst?: boolean;
 }
 
 export interface GenerateInviteActivityOutput {
@@ -178,6 +181,7 @@ export interface GenerateOrderActivityInput {
   database?: string;
   batchSize?: number;
   lastId?: string;
+  clearFirst?: boolean;
 }
 
 export interface GenerateOrderActivityOutput {
@@ -191,6 +195,7 @@ export interface GenerateUserActivityInput {
   database?: string;
   batchSize?: number;
   lastId?: string;
+  clearFirst?: boolean;
 }
 
 export interface GenerateUserActivityOutput {

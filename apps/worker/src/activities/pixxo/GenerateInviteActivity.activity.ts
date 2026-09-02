@@ -1,7 +1,7 @@
 import {Injectable} from '@nestjs/common';
 import {Context} from '@temporalio/activity';
 import {MongoClient, ObjectId} from 'mongodb';
-import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed} from '@andon-workflow/lib';
+import {GenerateInviteActivityInput, GenerateInviteActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed, clearTargetActivity} from '@andon-workflow/lib';
 import {jobLog} from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
@@ -10,6 +10,9 @@ const DEFAULT_ROLE_BATCH_SIZE = 100;
 
 const INVITED_VISIBLE_ROLES = ['OWNER', 'MANAGER'];
 const ACCEPTED_VISIBLE_ROLES = ['OWNER', 'MANAGER'];
+
+const TARGET_VERBS = ['INVITED', 'ACCEPTED'];
+const TARGET_SOURCE_COLLECTIONS = ['album_invite', 'album_role'];
 
 @Injectable()
 export class GenerateInviteActivity {
@@ -292,6 +295,13 @@ export class GenerateInviteActivity {
         try {
             await client.connect();
             const db = client.db(database);
+
+            if (input.clearFirst) {
+                const cleared = await clearTargetActivity(db, TARGET_VERBS, TARGET_SOURCE_COLLECTIONS);
+                jobLog.warn(
+                    `Cleared target activity data: ${cleared.eventsDeleted} events, ${cleared.summariesDeleted} summaries, ${cleared.progressDeleted} progress`,
+                );
+            }
 
             const result1 = await this.processInvited(db, input);
             invitedCreated = result1.invitedCreated;

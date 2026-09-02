@@ -1,13 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed } from '@andon-workflow/lib';
+import { GenerateAlbumActivityInput, GenerateAlbumActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed, clearTargetActivity } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
 const DEFAULT_BATCH_SIZE = 50;
 
 const VISIBLE_TO_ROLES = ['OWNER', 'MANAGER', 'GUEST'];
+
+const TARGET_VERBS = ['CREATED'];
+const TARGET_SOURCE_COLLECTIONS = ['album'];
 
 @Injectable()
 export class GenerateAlbumActivity {
@@ -26,6 +29,13 @@ export class GenerateAlbumActivity {
     try {
       await client.connect();
       const db = client.db(database);
+
+      if (input.clearFirst) {
+        const cleared = await clearTargetActivity(db, TARGET_VERBS, TARGET_SOURCE_COLLECTIONS);
+        jobLog.warn(
+          `Cleared target activity data: ${cleared.eventsDeleted} events, ${cleared.summariesDeleted} summaries, ${cleared.progressDeleted} progress`,
+        );
+      }
 
       while (true) {
         const albums: any[] = await findUnprocessedBatch(db, 'album', batchSize);

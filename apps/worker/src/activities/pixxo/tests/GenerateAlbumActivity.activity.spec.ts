@@ -112,6 +112,7 @@ describe('GenerateAlbumActivity', () => {
         toArray: jest.fn().mockResolvedValue(progressData),
       })),
       insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
     mockCollectionFns['activity_event'] = {
       insertOne: jest.fn().mockImplementation(async (doc: any) => {
@@ -122,9 +123,11 @@ describe('GenerateAlbumActivity', () => {
         return { insertedId: doc._id };
       }),
       _existing: new Set<string>(),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
     mockCollectionFns['activity_summary'] = {
       updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
   }
 
@@ -259,5 +262,19 @@ describe('GenerateAlbumActivity', () => {
 
     const result = await generateAlbumActivity.generateAlbumActivity({ database: 'test-db' });
     expect(result.eventsCreated).toBe(1);
+  });
+
+  it('should clear target activity data when clearFirst is true', async () => {
+    const authorId = new ObjectId();
+    const albumId = new ObjectId();
+    setupAlbumDocs([
+      { _id: albumId, author: authorId, name: 'Wedding Album', type: 'WEDDING', date: 1700000000000, createdAt: 1700000000000 },
+    ]);
+
+    await generateAlbumActivity.generateAlbumActivity({ database: 'test-db', clearFirst: true });
+
+    expect(mockCollectionFns['activity_event'].deleteMany).toHaveBeenCalledWith({ verb: { $in: ['CREATED'] } });
+    expect(mockCollectionFns['activity_summary'].deleteMany).toHaveBeenCalledWith({ verb: { $in: ['CREATED'] } });
+    expect(mockCollectionFns['backfill_progress'].deleteMany).toHaveBeenCalledWith({ sourceCollection: { $in: ['album'] } });
   });
 });

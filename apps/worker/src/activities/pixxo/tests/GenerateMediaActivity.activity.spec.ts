@@ -95,12 +95,15 @@ describe('GenerateMediaActivity', () => {
         toArray: jest.fn().mockResolvedValue(progressData),
       })),
       insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
     mockCollectionFns['activity_event'] = {
       insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
     mockCollectionFns['activity_summary'] = {
       updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
   }
 
@@ -221,5 +224,20 @@ describe('GenerateMediaActivity', () => {
 
     const result = await generateMediaActivity.generateMediaActivity({ database: 'test-db' });
     expect(result.eventsCreated).toBe(0);
+  });
+
+  it('should clear target activity data when clearFirst is true', async () => {
+    const albumId = new ObjectId();
+    const authorId = new ObjectId();
+    const docs = [
+      { _id: new ObjectId(), album: albumId, author: authorId, uploadAt: 1700000000000 },
+    ];
+    setupMediaDocs(docs);
+
+    await generateMediaActivity.generateMediaActivity({ database: 'test-db', clearFirst: true });
+
+    expect(mockCollectionFns['activity_event'].deleteMany).toHaveBeenCalledWith({ verb: { $in: ['UPLOADED'] } });
+    expect(mockCollectionFns['activity_summary'].deleteMany).toHaveBeenCalledWith({ verb: { $in: ['UPLOADED'] } });
+    expect(mockCollectionFns['backfill_progress'].deleteMany).toHaveBeenCalledWith({ sourceCollection: { $in: ['media'] } });
   });
 });

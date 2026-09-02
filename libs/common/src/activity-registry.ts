@@ -291,6 +291,7 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
         properties: {
           database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
           batchSize: { type: 'number', title: 'Batch Size', description: 'Albums per batch (default: 50)' },
+          clearFirst: { type: 'boolean', title: 'Clear First', description: "Delete this activity's existing events, summaries, and progress before regenerating (destructive)" },
         },
       },
       output: {
@@ -314,6 +315,7 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
         properties: {
           database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
           batchSize: { type: 'number', title: 'Batch Size', description: 'Media per batch (default: 100)' },
+          clearFirst: { type: 'boolean', title: 'Clear First', description: "Delete this activity's existing events, summaries, and progress before regenerating (destructive)" },
         },
       },
       output: {
@@ -339,6 +341,7 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
           database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
           inviteBatchSize: { type: 'number', title: 'Invite Batch Size', description: 'Invites per batch (default: 100)' },
           roleBatchSize: { type: 'number', title: 'Role Batch Size', description: 'Roles per batch (default: 100)' },
+          clearFirst: { type: 'boolean', title: 'Clear First', description: "Delete this activity's existing events, summaries, and progress before regenerating (destructive)" },
         },
       },
       output: {
@@ -364,6 +367,7 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
         properties: {
           database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
           batchSize: { type: 'number', title: 'Batch Size', description: 'Orders per batch (default: 50)' },
+          clearFirst: { type: 'boolean', title: 'Clear First', description: "Delete this activity's existing events, summaries, and progress before regenerating (destructive)" },
         },
       },
       output: {
@@ -387,6 +391,7 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
         properties: {
           database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
           batchSize: { type: 'number', title: 'Batch Size', description: 'Users per batch (default: 100)' },
+          clearFirst: { type: 'boolean', title: 'Clear First', description: "Delete this activity's existing events, summaries, and progress before regenerating (destructive)" },
         },
       },
       output: {

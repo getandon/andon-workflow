@@ -98,12 +98,19 @@ describe('GenerateInviteActivity', () => {
         };
       }),
       insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
   }
 
   function setupActivityEvent() {
-    mockCollectionFns['activity_event'] = { insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }) };
-    mockCollectionFns['activity_summary'] = { updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }) };
+    mockCollectionFns['activity_event'] = {
+      insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+    };
+    mockCollectionFns['activity_summary'] = {
+      updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+    };
   }
 
   it('should create INVITED events for all invites', async () => {
@@ -260,5 +267,20 @@ describe('GenerateInviteActivity', () => {
 
     const result = await generateInviteActivity.generateInviteActivity({ database: 'test-db' });
     expect(result.acceptedCreated).toBe(1);
+  });
+
+  it('should clear target activity data when clearFirst is true', async () => {
+    setupCollection('album_invite', makeCursor([]));
+    setupCollection('album_role', makeCursor([]));
+    setupCollection('user', makeCursor([]));
+    setupCollection('album', makeCursor([]));
+    setupActivityEvent();
+    setupBackfillProgress();
+
+    await generateInviteActivity.generateInviteActivity({ database: 'test-db', clearFirst: true });
+
+    expect(mockCollectionFns['activity_event'].deleteMany).toHaveBeenCalledWith({ verb: { $in: ['INVITED', 'ACCEPTED'] } });
+    expect(mockCollectionFns['activity_summary'].deleteMany).toHaveBeenCalledWith({ verb: { $in: ['INVITED', 'ACCEPTED'] } });
+    expect(mockCollectionFns['backfill_progress'].deleteMany).toHaveBeenCalledWith({ sourceCollection: { $in: ['album_invite', 'album_role'] } });
   });
 });

@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Context } from '@temporalio/activity';
 import { MongoClient, ObjectId } from 'mongodb';
-import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed } from '@andon-workflow/lib';
+import { GenerateOrderActivityInput, GenerateOrderActivityOutput, requiredEnv, toHex, toObjectId, fetchUserMap, insertActivityEvent, upsertActivitySummary, findUnprocessedBatch, markProcessed, clearTargetActivity } from '@andon-workflow/lib';
 import { jobLog } from '../../job-log';
 
 const DEFAULT_DATABASE = 'album-server-db';
 const DEFAULT_BATCH_SIZE = 50;
+
+const TARGET_VERBS = ['PURCHASED'];
+const TARGET_SOURCE_COLLECTIONS = ['order'];
 
 @Injectable()
 export class GenerateOrderActivity {
@@ -24,6 +27,13 @@ export class GenerateOrderActivity {
     try {
       await client.connect();
       const db = client.db(database);
+
+      if (input.clearFirst) {
+        const cleared = await clearTargetActivity(db, TARGET_VERBS, TARGET_SOURCE_COLLECTIONS);
+        jobLog.warn(
+          `Cleared target activity data: ${cleared.eventsDeleted} events, ${cleared.summariesDeleted} summaries, ${cleared.progressDeleted} progress`,
+        );
+      }
 
       while (true) {
         const orders: any[] = await findUnprocessedBatch(db, 'order', batchSize);

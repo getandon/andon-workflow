@@ -39,6 +39,27 @@ export async function fetchUserMap(
   return userMap;
 }
 
+export interface ClearTargetActivityResult {
+  eventsDeleted: number;
+  summariesDeleted: number;
+  progressDeleted: number;
+}
+
+export async function clearTargetActivity(
+  db: any,
+  verbs: string[],
+  sourceCollections: string[],
+): Promise<ClearTargetActivityResult> {
+  const events = await db.collection('activity_event').deleteMany({ verb: { $in: verbs } });
+  const summaries = await db.collection('activity_summary').deleteMany({ verb: { $in: verbs } });
+  const progress = await db.collection('backfill_progress').deleteMany({ sourceCollection: { $in: sourceCollections } });
+  return {
+    eventsDeleted: events.deletedCount ?? 0,
+    summariesDeleted: summaries.deletedCount ?? 0,
+    progressDeleted: progress.deletedCount ?? 0,
+  };
+}
+
 export async function insertActivityEvent(
   db: any,
   event: {
@@ -77,11 +98,26 @@ export async function markProcessed(
   }
 }
 
+const ensuredBackfillIndexes = new Set<string>();
+
+async function ensureBackfillProgressIndex(db: any): Promise<void> {
+  const name: string | undefined = db?.databaseName;
+  if (name && ensuredBackfillIndexes.has(name)) return;
+  try {
+    await db.collection('backfill_progress').createIndex?.({ sourceCollection: 1, sourceId: -1 });
+  } catch {
+    // non-fatal: index may already exist with a different spec, or permissions restrict creation
+  }
+  if (name) ensuredBackfillIndexes.add(name);
+}
+
 export async function findUnprocessedBatch(
   db: any,
   sourceCollection: string,
   batchSize: number,
 ): Promise<any[]> {
+  await ensureBackfillProgressIndex(db);
+
   const last = await db
     .collection('backfill_progress')
     .find({ sourceCollection })
