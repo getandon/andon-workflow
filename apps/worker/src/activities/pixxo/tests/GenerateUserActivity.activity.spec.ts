@@ -78,7 +78,8 @@ describe('GenerateUserActivity', () => {
 
     mockCollectionFns['backfill_progress'] = {
       find: jest.fn(() => ({
-        project: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
         toArray: jest.fn().mockResolvedValue(progressData),
       })),
       insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),

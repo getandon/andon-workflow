@@ -82,26 +82,21 @@ export async function findUnprocessedBatch(
   sourceCollection: string,
   batchSize: number,
 ): Promise<any[]> {
-  const processed = await db
+  const last = await db
     .collection('backfill_progress')
     .find({ sourceCollection })
-    .project({ sourceId: 1 })
+    .sort({ sourceId: -1 })
+    .limit(1)
     .toArray();
 
-  const processedIds = processed.map((p: any) => p.sourceId);
+  const lastId = last[0]?.sourceId;
 
-  if (processedIds.length === 0) {
-    return await db
-      .collection(sourceCollection)
-      .find({})
-      .sort({ _id: 1 })
-      .limit(batchSize)
-      .toArray();
-  }
+  const query = lastId ? { _id: { $gt: lastId } } : {};
 
   return await db
     .collection(sourceCollection)
-    .find({ _id: { $nin: processedIds } })
+    .find(query)
+    .sort({ _id: 1 })
     .limit(batchSize)
     .toArray();
 }

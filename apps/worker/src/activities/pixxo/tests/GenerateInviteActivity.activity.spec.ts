@@ -92,7 +92,8 @@ describe('GenerateInviteActivity', () => {
       find: jest.fn((query: any) => {
         const data = query.sourceCollection === 'album_invite' ? inviteProgress : roleProgress;
         return {
-          project: jest.fn().mockReturnThis(),
+          sort: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockReturnThis(),
           toArray: jest.fn().mockResolvedValue(data),
         };
       }),

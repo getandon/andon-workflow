@@ -90,7 +90,8 @@ describe('GenerateMediaActivity', () => {
     };
     mockCollectionFns['backfill_progress'] = {
       find: jest.fn(() => ({
-        project: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
         toArray: jest.fn().mockResolvedValue(progressData),
       })),
       insertMany: jest.fn().mockResolvedValue({ insertedCount: 0 }),
@@ -129,6 +130,22 @@ describe('GenerateMediaActivity', () => {
     expect(insertCall.actorName).toBe('Uploader');
 
     expect(mockCollectionFns['backfill_progress'].insertMany).toHaveBeenCalled();
+  });
+
+  it('should resume from the last processed sourceId using a $gt cursor', async () => {
+    const albumId = new ObjectId();
+    const authorId = new ObjectId();
+    const lastId = new ObjectId();
+    const docs = [
+      { _id: new ObjectId(), album: albumId, author: authorId, uploadAt: 1700000000000 },
+    ];
+    setupMediaDocs(docs);
+    progressData.push({ sourceCollection: 'media', sourceId: lastId });
+
+    const result = await generateMediaActivity.generateMediaActivity({ database: 'test-db' });
+
+    expect(mockCollectionFns['media'].find).toHaveBeenCalledWith({ _id: { $gt: lastId } });
+    expect(result.completed).toBe(true);
   });
 
   it('should create separate groups for different dates', async () => {
