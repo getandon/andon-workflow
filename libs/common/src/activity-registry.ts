@@ -462,4 +462,27 @@ export const ACTIVITY_REGISTRY: ActivityDefinition[] = [
       },
     },
   },
+  {
+    name: 'dedupeAlbumRole',
+    label: 'Dedupe Album Role',
+    description: 'Dedupe album_role (user, album) and create a compound unique index',
+    schema: {
+      input: {
+        type: 'object',
+        properties: {
+          database: { type: 'string', title: 'Database', description: 'MongoDB database name (default: album-server-db)' },
+          dryRun: { type: 'boolean', title: 'Dry Run', description: 'Report duplicates without deleting or creating the index' },
+        },
+      },
+      output: {
+        type: 'object',
+        properties: {
+          duplicatesFound: { type: 'number', title: 'Duplicate Groups Found' },
+          duplicatesDeleted: { type: 'number', title: 'Duplicate Rows Deleted' },
+          indexCreated: { type: 'boolean', title: 'Index Created' },
+          completed: { type: 'boolean', title: 'Completed' },
+        },
+      },
+    },
+  },
 ];

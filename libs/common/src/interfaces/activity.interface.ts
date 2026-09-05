@@ -239,3 +239,15 @@ export interface SeedAdminActivityOutput {
   batches: number;
   completed: boolean;
 }
+
+export interface DedupeAlbumRoleInput {
+  database?: string;
+  dryRun?: boolean;
+}
+
+export interface DedupeAlbumRoleOutput {
+  duplicatesFound: number;
+  duplicatesDeleted: number;
+  indexCreated: boolean;
+  completed: boolean;
+}

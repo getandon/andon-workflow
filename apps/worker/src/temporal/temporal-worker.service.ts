@@ -29,6 +29,7 @@ import { GenerateOrderActivity } from '../activities/pixxo/GenerateOrderActivity
 import { GenerateUserActivity } from '../activities/pixxo/GenerateUserActivity.activity';
 import { ClearActivityDataActivity } from '../activities/pixxo/ClearActivityData.activity';
 import { SeedAdminActivity } from '../activities/pixxo/SeedAdminActivity.activity';
+import { DedupeAlbumRoleActivity } from '../activities/pixxo/DedupeAlbumRole.activity';
 
 const API_URL = process.env.ANDON_API_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || '';
@@ -69,6 +70,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly generateUserActivity: GenerateUserActivity,
     private readonly clearActivityData: ClearActivityDataActivity,
     private readonly seedAdminActivity: SeedAdminActivity,
+    private readonly dedupeAlbumRole: DedupeAlbumRoleActivity,
   ) {
     const taskQueue = process.env.TEMPORAL_TASK_QUEUE ?? 'source';
     this.workerName = process.env.WORKER_NAME ?? `${os.hostname()}-${taskQueue}`;
@@ -103,6 +105,7 @@ export class TemporalWorkerService implements OnModuleInit, OnModuleDestroy {
       generateUserActivity: this.generateUserActivity.generateUserActivity.bind(this.generateUserActivity),
       clearActivityData: this.clearActivityData.clearActivityData.bind(this.clearActivityData),
       seedAdminActivity: this.seedAdminActivity.seedAdminActivity.bind(this.seedAdminActivity),
+      dedupeAlbumRole: this.dedupeAlbumRole.dedupeAlbumRole.bind(this.dedupeAlbumRole),
     };
 
     this.worker = await Worker.create({

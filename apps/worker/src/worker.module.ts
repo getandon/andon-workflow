@@ -17,6 +17,7 @@ import { GenerateOrderActivity } from './activities/pixxo/GenerateOrderActivity.
 import { GenerateUserActivity } from './activities/pixxo/GenerateUserActivity.activity';
 import { ClearActivityDataActivity } from './activities/pixxo/ClearActivityData.activity';
 import { SeedAdminActivity } from './activities/pixxo/SeedAdminActivity.activity';
+import { DedupeAlbumRoleActivity } from './activities/pixxo/DedupeAlbumRole.activity';
 
 @Module({
   providers: [
@@ -38,6 +39,7 @@ import { SeedAdminActivity } from './activities/pixxo/SeedAdminActivity.activity
     GenerateUserActivity,
     ClearActivityDataActivity,
     SeedAdminActivity,
+    DedupeAlbumRoleActivity,
   ],
 })
 export class WorkerModule {}
